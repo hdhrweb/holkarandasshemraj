@@ -104,18 +104,18 @@ document.getElementById('saveText').addEventListener('click',()=>{localStorage.s
 let bulkFileText='', bulkPhotoMap={};
 const bulkStatus=document.getElementById('bulkStatus'), bulkPreviewArea=document.getElementById('bulkPreviewArea');
 function parseDelimited(text){
- const lines=text.replace(/^\\uFEFF/,'').split(/\\r?\\n/).filter(l=>l.trim());
+ const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(l=>l.trim());
  if(!lines.length)return [];
- const first=lines[0], delim=(first.match(/\\t/g)||[]).length>(first.match(/,/g)||[]).length?'\\t':',';
+ const first=lines[0], delim=(first.match(/\t/g)||[]).length>(first.match(/,/g)||[]).length?'\t':',';
  const rows=[]; for(const line of lines){let cells=[],cur='',q=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'&&line[i+1]==='"'&&q){cur+='"';i++}else if(c==='"')q=!q;else if(c===delim&&!q){cells.push(cur.trim());cur=''}else cur+=c}cells.push(cur.trim());rows.push(cells)}
- const headers=rows.shift().map(h=>h.trim().toLowerCase().replace(/[\\s-]+/g,'_'));
+ const headers=rows.shift().map(h=>h.trim().toLowerCase().replace(/[\s-]+/g,'_'));
  return rows.map(cells=>Object.fromEntries(headers.map((h,i)=>[h,(cells[i]||'').trim()])));
 }
-function normalizeKey(s){return String(s||'').toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
+function normalizeKey(s){return String(s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
 function getBulkRows(){
  const raw=document.getElementById('bulkText').value.trim()||bulkFileText.trim();
  if(!raw)throw new Error('Choose a file or paste a product list first.');
- if(raw.startsWith('[')||raw.startsWith('{')){const obj=JSON.parse(raw);return (Array.isArray(obj)?obj:(obj.products||[])).map(p=>{const o={};Object.keys(p).forEach(k=>o[k.toLowerCase().replace(/[\\s-]+/g,'_')]=p[k]);return o})}
+ if(raw.startsWith('[')||raw.startsWith('{')){const obj=JSON.parse(raw);return (Array.isArray(obj)?obj:(obj.products||[])).map(p=>{const o={};Object.keys(p).forEach(k=>o[k.toLowerCase().replace(/[\s-]+/g,'_')]=p[k]);return o})}
  return parseDelimited(raw);
 }
 function previewBulk(){
@@ -123,10 +123,10 @@ function previewBulk(){
  const existing=new Set(products.map(p=>normalizeKey(p.name)+'|'+normalizeKey(p.category)));
  const seen=new Set(), accepted=[], skipped=[];
  rows.forEach((r,i)=>{
-  const name=String(r.name||r.product||r.product_name||'').trim(), price=Number(String(r.price??r.sale_price??'').replace(/[₹,\\s]/g,'')), category=String(r.category||r.categories||'').trim(), oldRaw=String(r.old??r.old_price??r.mrp??'').replace(/[₹,\\s]/g,''), old=oldRaw?Number(oldRaw):price, tag=String(r.tag||r.badge||'').trim();
+  const name=String(r.name||r.product||r.product_name||'').trim(), price=Number(String(r.price??r.sale_price??'').replace(/[₹,\s]/g,'')), category=String(r.category||r.categories||'').trim(), oldRaw=String(r.old??r.old_price??r.mrp??'').replace(/[₹,\s]/g,''), old=oldRaw?Number(oldRaw):price, tag=String(r.tag||r.badge||'').trim();
   let image=String(r.image||r.photo||r.image_url||r.photo_url||'').trim();
   const fileName=image.split('/').pop().split('?')[0].toLowerCase();
-  if(!/^https?:\\/\\//i.test(image)&&bulkPhotoMap[fileName])image=bulkPhotoMap[fileName];
+  if(!/^https?:\/\//i.test(image)&&bulkPhotoMap[fileName])image=bulkPhotoMap[fileName];
   const errors=[];if(!name)errors.push('missing name');if(!String(r.price??r.sale_price??'').trim()||!Number.isFinite(price)||price<0)errors.push('invalid price');if(!category)errors.push('missing category');if(oldRaw&&(!Number.isFinite(old)||old<0))errors.push('invalid old price');
   const key=normalizeKey(name)+'|'+normalizeKey(category);
   if(!errors.length&&(existing.has(key)||seen.has(key))){skipped.push({row:i+2,name,reason:'duplicate name + category'});return}
@@ -146,7 +146,7 @@ function previewBulk(){
 document.getElementById('bulkFile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{bulkFileText=String(rd.result||'');document.getElementById('bulkText').value=bulkFileText;bulkStatus.textContent='Loaded '+f.name+'. Click Validate & preview to check rows and auto-publish valid products.'};rd.readAsText(f)});
 document.getElementById('bulkImages').addEventListener('change',e=>{bulkPhotoMap={};const files=Array.from(e.target.files||[]);let left=files.length;if(!left)return;files.forEach(file=>{const rd=new FileReader();rd.onload=()=>{bulkPhotoMap[file.name.toLowerCase()]=rd.result;if(!--left)bulkStatus.textContent='Loaded '+files.length+' photo(s). Use matching filenames in the image column.'};rd.readAsDataURL(file)})});
 document.getElementById('bulkPreview').addEventListener('click',previewBulk);
-document.getElementById('bulkExample').addEventListener('click',()=>{document.getElementById('bulkText').value='name,price,old,category,tag,image\\nPastel Notebook Set,149,199,Notebooks,NEW ARRIVAL,notebook.jpg\\nColour Pencil Set,99,,Art & Craft,UNDER ₹99,https://example.com/pencils.jpg';bulkFileText='';bulkStatus.textContent='Sample loaded. Click Validate & preview to test it.'});
+document.getElementById('bulkExample').addEventListener('click',()=>{document.getElementById('bulkText').value='name,price,old,category,tag,image\nPastel Notebook Set,149,199,Notebooks,NEW ARRIVAL,notebook.jpg\nColour Pencil Set,99,,Art & Craft,UNDER ₹99,https://example.com/pencils.jpg';bulkFileText='';bulkStatus.textContent='Sample loaded. Click Validate & preview to test it.'});
 document.getElementById('bulkClear').addEventListener('click',()=>{document.getElementById('bulkText').value='';document.getElementById('bulkFile').value='';document.getElementById('bulkImages').value='';bulkFileText='';bulkPhotoMap={};bulkPreviewArea.innerHTML='';bulkStatus.textContent='Ready. Choose a file or paste your list.'});
 
 

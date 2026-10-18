@@ -145,6 +145,7 @@ document.getElementById('bulkImages').addEventListener('change',e=>{bulkPhotoMap
 document.getElementById('bulkPreview').addEventListener('click',previewBulk);
 document.getElementById('bulkExample').addEventListener('click',()=>{document.getElementById('bulkText').value='name,price,old,category,tag,image\\nPastel Notebook Set,149,199,Notebooks,NEW ARRIVAL,notebook.jpg\\nColour Pencil Set,99,,Art & Craft,UNDER ₹99,https://example.com/pencils.jpg';bulkFileText='';bulkStatus.textContent='Sample loaded. Click Validate & preview to test it.'});
 document.getElementById('bulkClear').addEventListener('click',()=>{document.getElementById('bulkText').value='';document.getElementById('bulkFile').value='';document.getElementById('bulkImages').value='';bulkFileText='';bulkPhotoMap={};bulkPreviewArea.innerHTML='';bulkStatus.textContent='Ready. Choose a file or paste your list.'});
-\nfillDesign();fillText();
+
+fillDesign();fillText();
 renderList();showBrand();
 </script></body></html>

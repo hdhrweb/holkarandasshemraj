@@ -47,7 +47,7 @@ async function fetchPage(url) {
   return { html: (await response.text()).slice(0, 900000), url: current.href };
 }
 function extract(html, url, linkText) {
-  const cleanText=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim());
+  const cleanText=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim());
   const metas = {};
   for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
     const tag=m[0], key=(attr(tag,"property")||attr(tag,"name")).toLowerCase(), value=attr(tag,"content");
@@ -75,7 +75,7 @@ function extract(html, url, linkText) {
   const h1Match=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i); const h1=h1Match?cleanText(h1Match[1]):"";
   const name=metas["og:title"]||metas["twitter:title"]||productJson?.name||h1||title||linkText||"";
 
-  let image=metas["og:image"]||metas["twitter:image"]||productJson?.image?.url||productJson?.image?.[0]?.url||productJson?.image||"";
+  let image=metas["og:image"]||metas["twitter:image"]||(typeof productJson?.image==="string"?productJson.image:Array.isArray(productJson?.image)?(typeof productJson.image[0]==="string"?productJson.image[0]:productJson.image[0]?.url):productJson?.image?.url)||"";
   if(!image){const im=html.match(/<img\b[^>]*>/i);if(im) image=attr(im[0],"src")||attr(im[0],"data-src")||attr(im[0],"data-lazy-src");}
   try{if(image) image=new URL(image,url).href;}catch{image="";}
   let rawPrice=metas["product:price:amount"]||metas["og:price:amount"]||productJson?.offers?.price||productJson?.offers?.[0]?.price||"";

@@ -175,6 +175,31 @@ export async function onRequestPost({ request }) {
       }
       discoverJsonLd(sitemapPage.html,candidates,sitemapPage.url);
     } catch {}
+    // Camlin catalogue pages use nested category/product paths and a shared /sitemaps page.
+    // Seed the known Camlin categories, then exclude the sibling Camel art catalogue.
+    const camlinCatalogue = target.hostname.toLowerCase().endsWith("kokuyocamlin.com") &&
+      target.pathname.toLowerCase().replace(/\/$/, "").startsWith("/camlin");
+    if (camlinCatalogue) {
+      for (const path of [
+        "/camlin/notebooks",
+        "/camlin/markers-and-pens",
+        "/camlin/pencils-and-accessories",
+        "/camlin/geometry-box",
+        "/camlin/adhesives",
+        "/camlin/early-learning",
+        "/camlin/office-supplies"
+      ]) {
+        const url = new URL(path, target.origin).href;
+        if (!candidates.has(url)) candidates.set(url, { text: "Camlin category", priority: 0 });
+      }
+      for (const [url, info] of [...candidates.entries()]) {
+        try {
+          const parsed = new URL(url);
+          if (parsed.hostname.toLowerCase() !== target.hostname.toLowerCase() ||
+              !parsed.pathname.toLowerCase().startsWith("/camlin/")) candidates.delete(url);
+        } catch { candidates.delete(url); }
+      }
+    }
     // Follow category/collection links and collect product links from those pages too.
     const categoryLinks = [...candidates.entries()].filter(([u, v]) => /category|collection|catalog|shop|store|stationery|art|book|product|notebook|marker|pen|pencil|adhesive|geometry|early-learning|office-supplies/i.test(u + " " + v.text)).slice(0, 20);
     for (const [u] of categoryLinks) {

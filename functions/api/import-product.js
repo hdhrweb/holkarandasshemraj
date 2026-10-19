@@ -31,7 +31,9 @@ function parsePage(html,url){
  if(typeof price==="number"&&!Number.isFinite(price))price=null;
  let image=clean(p.image)||clean(metas["og:image"])||clean(metas["og:image:url"])||clean(metas["twitter:image"])||clean(metas["twitter:image:src"]);
  if(image){try{image=new URL(image,url).href}catch{image=""}}
- let name=clean(p.name)||clean(metas["og:title"])||clean(metas["twitter:title"])||clean(metas["title"])||clean((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)||[])[1]).replace(/<[^>]+>/g," ")||"");
+  const titleMatch=html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
+  const titleText=titleMatch?titleMatch[1].replace(/<[^>]+>/g," "):"";
+  let name=clean(p.name)||clean(metas["og:title"])||clean(metas["twitter:title"])||clean(metas["title"])||clean(titleText)||"";
  let category=clean(p.category)||clean(metas["product:category"])||"";
  let oldPrice=offers.highPrice??null;if(oldPrice!==null){oldPrice=Number(String(oldPrice).replace(/[^\d.]/g,""));if(!Number.isFinite(oldPrice))oldPrice=null}
  return {name:name.slice(0,180),image,price,oldPrice,category:category.slice(0,80),currency,note:(!name||!image||price===null)?"Some fields could not be detected from this page. Fill in any missing details manually.":"Extracted from page metadata; please verify price and image before saving."};

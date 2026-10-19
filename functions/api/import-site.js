@@ -82,11 +82,11 @@ function addCandidate(candidates, href, text, baseUrl) {
     const base = new URL(baseUrl);
     if (link.hostname !== base.hostname || !["http:","https:"].includes(link.protocol)) return;
     link.hash = "";
-    if (/\\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml|json)$/i.test(link.pathname)) return;
-    if (/\\/(cart|account|login|logout|search|blog|about|contact|policy|privacy|terms|checkout|wishlist|register)(\\/|$)/i.test(link.pathname)) return;
+    if (/\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml|json)$/i.test(link.pathname)) return;
+    if (/\/(cart|account|login|logout|search|blog|about|contact|policy|privacy|terms|checkout|wishlist|register)(\/|$)/i.test(link.pathname)) return;
     if (link.href === base.href) return;
     const key = link.href;
-    const priority = likelyProduct(link.pathname, text) ? 0 : (/\\/(products?|p|dp|itm|item)(\\/|$)/i.test(link.pathname) ? 0 : 1);
+    const priority = likelyProduct(link.pathname, text) ? 0 : (/\/(products?|p|dp|itm|item)(\/|$)/i.test(link.pathname) ? 0 : 1);
     const old = candidates.get(key);
     if (!old || priority < old.priority || (!old.text && text)) candidates.set(key, {text: text || "", priority});
   } catch {}
@@ -108,8 +108,8 @@ function discoverJsonLd(html, candidates, baseUrl) {
     }
     for (const [k, val] of Object.entries(v)) if (["@graph","mainEntity","mainEntityOfPage","itemListElement","item","hasVariant"].includes(k) || Array.isArray(val)) walk(val);
   }
-  for (const m of html.matchAll(/<script\\b[^>]*type\\s*=\\s*["']application\\/ld\\+json["'][^>]*>([\\s\\S]*?)<\\/script>/gi)) {
-    try { walk(JSON.parse(m[1].replace(/^\\uFEFF/, "").trim())); } catch {}
+  for (const m of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try { walk(JSON.parse(m[1].replace(/^\uFEFF/, "").trim())); } catch {}
   }
 }
 export async function onRequestPost({ request }) {
@@ -120,9 +120,9 @@ export async function onRequestPost({ request }) {
     const home = await fetchPage(target);
     const candidates = new Map();
     discoverJsonLd(home.html, candidates, home.url);
-    for (const m of home.html.matchAll(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)) {
+    for (const m of home.html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/gi)) {
       const tag = m[0], href = attr(tag, "href");
-      const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ")).trim().slice(0, 180);
+      const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ")).trim().slice(0, 180);
       if (href) addCandidate(candidates, href, text, home.url);
     }
     // Follow category/collection links and collect product links from those pages too.
@@ -131,9 +131,9 @@ export async function onRequestPost({ request }) {
       try {
         const page = await fetchPage(u);
         discoverJsonLd(page.html, candidates, page.url);
-        for (const m of page.html.matchAll(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)) {
+        for (const m of page.html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/gi)) {
           const tag = m[0], href = attr(tag, "href");
-          const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ")).trim().slice(0, 180);
+          const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ")).trim().slice(0, 180);
           if (href) addCandidate(candidates, href, text, page.url);
         }
       } catch {}
@@ -143,10 +143,10 @@ export async function onRequestPost({ request }) {
       try {
         const page = await fetchPage(url);
         const item = extract(page.html, page.url, info.text);
-        const hasProductSignals = /"@type"\\s*:\\s*"Product"/i.test(page.html) ||
-          /"@type"\\s*:\\s*\\[[^\\]]*"Product"/i.test(page.html) ||
+        const hasProductSignals = /"@type"\s*:\s*"Product"/i.test(page.html) ||
+          /"@type"\s*:\s*\[[^\]]*"Product"/i.test(page.html) ||
           /product:price:amount|product:category|og:price:amount/i.test(page.html) ||
-          /\\/(product|products|item|dp|p)\\//i.test(new URL(page.url).pathname);
+          /\/(product|products|item|dp|p)\//i.test(new URL(page.url).pathname);
         const title = (item.name || "").trim();
         if (!hasProductSignals || title.length < 2 || /^(home|about us|contact us|privacy policy|terms and conditions|login|sign in|cart|checkout|shop|products|collections|catalog)$/i.test(title)) return null;
         item.category = item.category || "";
@@ -155,7 +155,7 @@ export async function onRequestPost({ request }) {
     }));
     const seen = new Set(), products = [];
     for (const p of results.filter(Boolean)) {
-      const key = (p.url || "").split("?")[0].replace(/\\/$/, "").toLowerCase();
+      const key = (p.url || "").split("?")[0].replace(/\/$/, "").toLowerCase();
       if (!key || seen.has(key)) continue;
       seen.add(key); products.push(p);
     }

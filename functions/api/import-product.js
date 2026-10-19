@@ -53,7 +53,8 @@ function parsePage(html,url){
   const titleClose=titleOpen>=0?html.toLowerCase().indexOf("</title>",titleOpen):-1;
   const titleText=titleOpen>=0&&titleClose>titleOpen?html.slice(titleOpen+1,titleClose).replace(/<[^>]+>/g," "):"";
   let name=clean(p.name)||clean(metas["og:title"])||clean(metas["twitter:title"])||clean(metas["title"])||clean(titleText)||"";
- let category=clean(p.category)||clean(metas["product:category"])||"";\n category=inferCategory(name,url,category);
+ let category=clean(p.category)||clean(metas["product:category"])||"";
+ category=inferCategory(name,url,category);
  let oldPrice=offers.highPrice??null;if(oldPrice!==null){oldPrice=Number(String(oldPrice).replace(/[^\d.]/g,""));if(!Number.isFinite(oldPrice))oldPrice=null}
  return {name:name.slice(0,180),image,price,oldPrice,category:category.slice(0,80),currency,note:(!name||!image||price===null)?"Some fields could not be detected from this page. Fill in any missing details manually.":"Extracted from page metadata; please verify price and image before saving."};
 }

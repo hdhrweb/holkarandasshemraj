@@ -48,8 +48,8 @@ async function fetchPage(url) {
 }
 function extract(html,url,linkText){
  const metas={};
- for(const tagMatch of html.matchAll(/<meta\\b[^>]*>/gi)){
-  const tag=tagMatch[0],k=(tag.match(/\\b(?:property|name)\\s*=\\s*["']([^"']+)["']/i)||[])[1],v=(tag.match(/\\bcontent\\s*=\\s*["']([^"']*)["']/i)||[])[1];
+ for(const tagMatch of html.matchAll(/<meta\b[^>]*>/gi)){
+  const tag=tagMatch[0],k=(tag.match(/\b(?:property|name)\s*=\s*["']([^"']+)["']/i)||[])[1],v=(tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i)||[])[1];
   if(k&&v)metas[k.toLowerCase()]=decode(v);
  }
  const products=[];
@@ -60,20 +60,20 @@ function extract(html,url,linkText){
   if(types.some(t=>/product/i.test(t||"")))products.push(value);
   for(const [k,v] of Object.entries(value))if(k==="@graph"||k==="mainEntity"||k==="mainEntityOfPage"||k==="itemListElement"||Array.isArray(v))walkJsonLd(v);
  }
- for(const block of html.matchAll(/<script\\b[^>]*type\\s*=\\s*["']application\\/ld\\+json["'][^>]*>([\\s\\S]*?)<\\/script>/gi)){try{walkJsonLd(JSON.parse(block[1].replace(/^\\uFEFF/,"").trim()))}catch{}}
+ for(const block of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){try{walkJsonLd(JSON.parse(block[1].replace(/^\uFEFF/,"").trim()))}catch{}}
  const p=products[0]||{},offers=Array.isArray(p.offers)?p.offers[0]:(p.offers||{});
- const clean=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim());
+ const clean=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim());
  const tidy=v=>Array.isArray(v)?tidy(v[0]):v&&typeof v==="object"?(v.url||v["@id"]||v.contentUrl||""):typeof v==="string"?decode(v.trim()):"";
- const titleMatch=html.match(/<title\\b[^>]*>([\\s\\S]*?)<\\/title>/i),h1Match=html.match(/<h1\\b[^>]*>([\\s\\S]*?)<\\/h1>/i);
+ const titleMatch=html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i),h1Match=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
  const name=tidy(p.name)||metas["og:title"]||metas["twitter:title"]||clean(h1Match?.[1])||clean(titleMatch?.[1])||linkText||"";
  let image=tidy(p.image)||metas["og:image"]||metas["og:image:url"]||metas["twitter:image"]||"";
  try{if(image)image=new URL(image,url).href}catch{image=""}
  let raw=offers.price??offers.lowPrice??p.price??metas["product:price:amount"]??metas["og:price:amount"]??null;
  if(raw&&typeof raw==="object")raw=raw.value??null;
- if(typeof raw==="string"){raw=raw.replace(/[^\\d.,]/g,"").replace(/,(?=\\d{3}(?:\\D|$))/g,"").replace(",",".");raw=raw?Number(raw):null}
+ if(typeof raw==="string"){raw=raw.replace(/[^\d.,]/g,"").replace(/,(?=\d{3}(?:\D|$))/g,"").replace(",",".");raw=raw?Number(raw):null}
  if(typeof raw!=="number"||!Number.isFinite(raw))raw=null;
  let category=tidy(p.category)||metas["product:category"]||"";
- if(!image){const im=html.match(/<img\\b[^>]*>/i);if(im){const tag=im[0],src=(tag.match(/\\b(?:src|data-src|data-lazy-src)\\s*=\\s*["']([^"']+)/i)||[])[1];try{image=src?new URL(decode(src),url).href:""}catch{image=""}}}
+ if(!image){const im=html.match(/<img\b[^>]*>/i);if(im){const tag=im[0],src=(tag.match(/\b(?:src|data-src|data-lazy-src)\s*=\s*["']([^"']+)/i)||[])[1];try{image=src?new URL(decode(src),url).href:""}catch{image=""}}}
  return {name:clean(name).slice(0,180),image,price:raw,oldPrice:null,category:clean(category).slice(0,80),url};
 }
 export async function onRequestPost({ request }) {

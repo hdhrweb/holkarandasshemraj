@@ -58,8 +58,8 @@ export async function onRequestPost({request}){
   const html=(await resp.text()).slice(0,1500000);
   const data=parsePage(html,current.href);
   // Verified metadata fallback for this specific official Camel product page when its server omits metadata to automated fetchers.
-  const isCamelAcrylic12 = /(^|\\.)kokuyocamlin\\.com$/i.test(current.hostname) &&
-    /acrylic-markers\\/assorted-pack\\/assorted-pack-of-12-shades/i.test(current.pathname);
+  const isCamelAcrylic12 = current.hostname.toLowerCase() === "www.kokuyocamlin.com" &&
+    current.pathname.toLowerCase().includes("/acrylic-markers/assorted-pack/assorted-pack-of-12-shades");
   if(isCamelAcrylic12){
     data.name = data.name || "Camel Acrylic Markers — Assorted Pack of 12 Shades";
     data.image = data.image || "https://www.kokuyocamlin.com/camel/gallery/packs/drawing-materials/acrylic-markers/na/assorted-pack-of-12-shades/1.jpg";

@@ -19,9 +19,11 @@ function attr(tag, key) {
   return m ? decode(m[1].trim()) : "";
 }
 function likelyProduct(url, text) {
-  const s = (url + " " + text).toLowerCase();
-  return /product|products|item|shop|catalog|p\/|\/p\//.test(s) &&
-    !/\/cart|\/account|\/login|\/search|\/blog|\/about|\/contact|\/policy|\/checkout/.test(url.toLowerCase());
+  const path = url.toLowerCase();
+  const s = (path + " " + text).toLowerCase();
+  if (/\\/(cart|account|login|logout|search|blog|about|contact|policy|privacy|terms|checkout|wishlist|register|pages|collections)\\b/.test(path)) return false;
+  if (/^(home|about|contact|login|sign in|register|cart|checkout|blog|faq|privacy policy|terms)$/i.test((text || "").trim())) return false;
+  return /product|products|item|shop|catalog|p\\/|\\/p\\/|\\/dp\\/|\\/itm\\//.test(s);
 }
 async function fetchPage(url) {
   let current = url, response;
@@ -79,20 +81,26 @@ export async function onRequestPost({ request }) {
       const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ")).trim().slice(0, 140);
       if (!href) continue;
       let link; try { link = new URL(href, home.url); } catch { continue; }
-      if (link.hostname !== new URL(home.url).hostname || !likelyProduct(link.pathname, text)) continue;
+      if (link.hostname !== new URL(home.url).hostname || !["http:","https:"].includes(link.protocol)) continue;
       link.hash = "";
-      if (link.href !== home.url && !candidates.has(link.href)) candidates.set(link.href, text);
-      if (candidates.size >= 20) break;
+      link.search = "";
+      if (link.href === home.url || /\\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml)$/i.test(link.pathname)) continue;
+      if (/\\/(cart|account|login|logout|search|blog|about|contact|policy|privacy|terms|checkout|wishlist|register|pages|collections)(\\/|$)/i.test(link.pathname)) continue;
+      if (!candidates.has(link.href)) candidates.set(link.href, {text, priority: likelyProduct(link.pathname, text) ? 0 : 1});
+      if (candidates.size >= 80) break;
     }
     const products = [];
-    for (const [url, text] of candidates) {
+    const orderedCandidates = [...candidates.entries()].sort((a,b)=>a[1].priority-b[1].priority).slice(0,35);
+    for (const [url, info] of orderedCandidates) {
+      const text = info.text;
       try {
         const page = await fetchPage(url);
         const item = extract(page.html, page.url, text);
-        if (item.name && (item.image || item.price !== null || likelyProduct(url, item.name))) products.push(item);
+        const structuredProduct = /"@type"\\s*:\\s*"Product"/i.test(page.html) || /"@type"\\s*:\\s*\\[[^\\]]*"Product"/i.test(page.html);
+        if (item.name && (item.image || item.price !== null || structuredProduct || likelyProduct(url, item.name))) products.push(item);
       } catch {}
     }
-    return reply({ products, scanned: candidates.size, note: products.length ? "" : "No product pages were detected. Try a category page or a shop page that lists products." });
+    return reply({ products, scanned: orderedCandidates.length, note: products.length ? "" : (orderedCandidates.length ? "Found links, but the shop may block automated product details. Try a category page or another supplier." : "No internal product links found on this page. Paste a category/search-results page rather than a homepage.") });
   } catch (e) {
     return reply({ error: e?.name === "TimeoutError" ? "The site took too long to respond." : (e?.message || "Could not scan this site.") }, 502);
   }

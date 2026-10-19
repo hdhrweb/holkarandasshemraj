@@ -46,7 +46,8 @@ async function fetchPage(url) {
   if (!/html|xhtml/i.test(type)) throw new Error("The link is not an HTML page.");
   return { html: (await response.text()).slice(0, 900000), url: current.href };
 }
-function extract(html, url, linkText) {\n  const cleanText=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim());
+function extract(html, url, linkText) {
+  const cleanText=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim());
   const metas = {};
   for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
     const tag=m[0], key=(attr(tag,"property")||attr(tag,"name")).toLowerCase(), value=attr(tag,"content");

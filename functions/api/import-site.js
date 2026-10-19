@@ -48,7 +48,7 @@ async function fetchPage(url) {
 }
 function extract(html, url, linkText) {
   const metas = {};
-  for (const m of html.matchAll(/<meta\\b[^>]*>/gi)) {
+  for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
     const tag=m[0], key=(attr(tag,"property")||attr(tag,"name")).toLowerCase(), value=attr(tag,"content");
     if(key&&value) metas[key]=value;
   }
@@ -57,14 +57,14 @@ function extract(html, url, linkText) {
   const open=titleAt>=0?html.indexOf(">",titleAt):-1;
   const close=open>=0?html.toLowerCase().indexOf("</title>",open):-1;
   if(open>=0&&close>open) title=decode(html.slice(open+1,close).replace(/<[^>]*>/g," ")).trim();
-  const clean=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim());
-  const productJson=html.match(/"name"\\s*:\\s*"([^"]{2,180})"[\\s\\S]{0,1200}?"(?:price|image)"\\s*:/i);
-  const name=metas["og:title"]||metas["twitter:title"]||attr((html.match(/<h1\\b[^>]*>/i)||[""])[0],"content")||title||linkText||(productJson?decode(productJson[1]):"");
+  const clean=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim());
+  const productJson=html.match(/"name"\s*:\s*"([^"]{2,180})"[\s\S]{0,1200}?"(?:price|image)"\s*:/i);
+  const name=metas["og:title"]||metas["twitter:title"]||attr((html.match(/<h1\b[^>]*>/i)||[""])[0],"content")||title||linkText||(productJson?decode(productJson[1]):"");
   let image=metas["og:image"]||metas["twitter:image"]||"";
-  if(!image){const im=html.match(/<img\\b[^>]*>/i);if(im) image=attr(im[0],"src")||attr(im[0],"data-src")||attr(im[0],"data-lazy-src");}
+  if(!image){const im=html.match(/<img\b[^>]*>/i);if(im) image=attr(im[0],"src")||attr(im[0],"data-src")||attr(im[0],"data-lazy-src");}
   try{if(image) image=new URL(image,url).href;}catch{image="";}
   let rawPrice=metas["product:price:amount"]||metas["og:price:amount"]||"";
-  if(!rawPrice){const matches=[...html.matchAll(/(?:itemprop=["']price["'][^>]*content=["']([^"']+)|"price"\\s*:\\s*"?([0-9]+(?:\\.[0-9]+)?))/gi)];if(matches.length)rawPrice=matches[0][1]||matches[0][2]||"";}
+  if(!rawPrice){const matches=[...html.matchAll(/(?:itemprop=["']price["'][^>]*content=["']([^"']+)|"price"\s*:\s*"?([0-9]+(?:\.[0-9]+)?))/gi)];if(matches.length)rawPrice=matches[0][1]||matches[0][2]||"";}
   const price=rawPrice!==""&&Number.isFinite(Number(rawPrice))?Number(rawPrice):null;
   const category=metas["product:category"]||"";
   return {name:clean(name).slice(0,180),image,price,oldPrice:null,category:clean(category).slice(0,80),url};
@@ -85,8 +85,8 @@ export async function onRequestPost({ request }) {
       if (link.hostname !== new URL(home.url).hostname || !["http:","https:"].includes(link.protocol)) continue;
       link.hash = "";
       link.search = "";
-      if (link.href === home.url || /\\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml)$/i.test(link.pathname)) continue;
-      if (/\\/(cart|account|login|logout|search|blog|about|contact|policy|privacy|terms|checkout|wishlist|register|pages|collections)(\\/|$)/i.test(link.pathname)) continue;
+      if (link.href === home.url || /\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml)$/i.test(link.pathname)) continue;
+      if (/\/(cart|account|login|logout|search|blog|about|contact|policy|privacy|terms|checkout|wishlist|register|pages|collections)(\/|$)/i.test(link.pathname)) continue;
       if (!candidates.has(link.href)) candidates.set(link.href, {text, priority: likelyProduct(link.pathname, text) ? 0 : 1});
       if (candidates.size >= 80) break;
     }
@@ -97,7 +97,7 @@ export async function onRequestPost({ request }) {
       try {
         const page = await fetchPage(url);
         const item = extract(page.html, page.url, text);
-        const structuredProduct = /"@type"\\s*:\\s*"Product"/i.test(page.html) || /"@type"\\s*:\\s*\\[[^\\]]*"Product"/i.test(page.html);
+        const structuredProduct = /"@type"\s*:\s*"Product"/i.test(page.html) || /"@type"\s*:\s*\[[^\]]*"Product"/i.test(page.html);
         if (item.name && (item.image || item.price !== null || structuredProduct || likelyProduct(url, item.name))) products.push(item);
       } catch {}
     }

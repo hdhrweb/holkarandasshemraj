@@ -164,9 +164,9 @@ export async function onRequestPost({ request }) {
     // The supplier's /sitemaps endpoint can be an HTML sitemap, not XML.
     try {
       const sitemapPage = await fetchPage(new URL("/sitemaps", home.url));
-      for (const m of sitemapPage.html.matchAll(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)) {
+      for (const m of sitemapPage.html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/gi)) {
         const tag=m[0], href=attr(tag,"href");
-        const label=decode(tag.replace(/<[^>]*>/g," ").replace(/\\s+/g," ")).trim().slice(0,180);
+        const label=decode(tag.replace(/<[^>]*>/g," ").replace(/\s+/g," ")).trim().slice(0,180);
         if(href)addCandidate(candidates,href,label,sitemapPage.url);
       }
       discoverJsonLd(sitemapPage.html,candidates,sitemapPage.url);

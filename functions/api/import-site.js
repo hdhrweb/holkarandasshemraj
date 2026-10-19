@@ -87,6 +87,8 @@ function extract(html,url,linkText){
  let image=tidy(p.image)||metas["og:image"]||metas["og:image:url"]||metas["twitter:image"]||"";
  try{if(image)image=new URL(image,url).href}catch{image=""}
  let raw=offers.price??offers.lowPrice??p.price??metas["product:price:amount"]??metas["og:price:amount"]??null;
+ // Camlin product pages sometimes expose the visible MRP without Product JSON-LD price metadata.
+ if(raw==null){const visiblePrice=html.match(/₹\s*([\d,]+(?:\.\d{1,2})?)/);if(visiblePrice)raw=visiblePrice[1];}
  if(raw&&typeof raw==="object")raw=raw.value??null;
  if(typeof raw==="string"){raw=raw.replace(/[^\d.,]/g,"").replace(/,(?=\d{3}(?:\D|$))/g,"").replace(",",".");raw=raw?Number(raw):null}
  if(typeof raw!=="number"||!Number.isFinite(raw))raw=null;
@@ -99,6 +101,8 @@ function addCandidate(candidates, href, text, baseUrl) {
     const link = new URL(href, baseUrl);
     const base = new URL(baseUrl);
     if (link.hostname !== base.hostname || !["http:","https:"].includes(link.protocol)) return;
+    // Keep a /camlin/ scan inside the Camlin catalogue, rather than mixing in the sibling Camel art catalogue.
+    if (base.pathname.toLowerCase().startsWith("/camlin") && !link.pathname.toLowerCase().startsWith("/camlin/")) return;
     link.hash = "";
     if (/\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml|json)$/i.test(link.pathname)) return;
     if (/\/(cart|account|login|logout|search|blog|about|contact|policy|privacy|terms|checkout|wishlist|register)(\/|$)/i.test(link.pathname)) return;

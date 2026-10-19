@@ -9,6 +9,23 @@ function safeUrl(value){
 }
 function decode(s){return String(s||"").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&#x([\da-f]+);/gi,(_,n)=>String.fromCharCode(parseInt(n,16))).replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(+n));}
 function clean(v){if(Array.isArray(v))v=v[0];if(v&&typeof v==="object")v=v.url||v["@id"]||v.contentUrl||v.thumbnailUrl||"";return typeof v==="string"?decode(v.trim()):""}
+function inferCategory(name,url,category=""){
+ if(category&&category.trim())return category.trim().slice(0,80);
+ const s=(String(name||"")+" "+String(url||"")).toLowerCase().replace(/[-_/]+/g," ");
+ const rules=[
+ [/notebook|notepad|paper|register|diary|journal|writing pad/,"Notebooks & Paper"],
+ [/marker|pencil|crayon|paint|colour|color|brush|canvas|clay|glue|adhesive|eraser|sharpener|sketch|acrylic|art|craft|geometry|watercolou?r/,"Art & Craft"],
+ [/pen|ink|stationery|highlighter|correction|stapler|office supply/,"Stationery"],
+ [/school bag|backpack|lunch bag|pencil case|school essential/,"Bags & School Essentials"],
+ [/toy|puzzle|game|doll|blocks|plush/,"Toys & Games"],
+ [/book|story|novel|workbook|learning|activity book/,"Books & Learning"],
+ [/mug|cup|home decor|decor|lamp|organizer|organiser/,"Home & Lifestyle"],
+ [/shirt|t-shirt|dress|kurta|clothing|fashion/,"Fashion & Accessories"],
+ [/phone|mobile|charger|cable|earphone|headphone|electronic/,"Electronics & Accessories"]
+ ];
+ for(const [re,cat] of rules)if(re.test(s))return cat;
+ return "Everyday Essentials";
+}
 function walkJsonLd(value,out){
  if(!value||typeof value!=="object")return;
  if(Array.isArray(value)){for(const x of value)walkJsonLd(x,out);return}
@@ -36,7 +53,7 @@ function parsePage(html,url){
   const titleClose=titleOpen>=0?html.toLowerCase().indexOf("</title>",titleOpen):-1;
   const titleText=titleOpen>=0&&titleClose>titleOpen?html.slice(titleOpen+1,titleClose).replace(/<[^>]+>/g," "):"";
   let name=clean(p.name)||clean(metas["og:title"])||clean(metas["twitter:title"])||clean(metas["title"])||clean(titleText)||"";
- let category=clean(p.category)||clean(metas["product:category"])||"";
+ let category=clean(p.category)||clean(metas["product:category"])||"";\n category=inferCategory(name,url,category);
  let oldPrice=offers.highPrice??null;if(oldPrice!==null){oldPrice=Number(String(oldPrice).replace(/[^\d.]/g,""));if(!Number.isFinite(oldPrice))oldPrice=null}
  return {name:name.slice(0,180),image,price,oldPrice,category:category.slice(0,80),currency,note:(!name||!image||price===null)?"Some fields could not be detected from this page. Fill in any missing details manually.":"Extracted from page metadata; please verify price and image before saving."};
 }

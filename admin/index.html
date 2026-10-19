@@ -185,7 +185,24 @@ window.decideSiteProduct=function(index,add){
    finalPrice=Number(String(entered).replace(/[₹,\\s]/g,''));
    if(!String(entered).trim()||!Number.isFinite(finalPrice)||finalPrice<0){alert('Please enter a valid price (0 or more).');return}
   }
-  const category=p.category||'Imported';const key=normalizeKey(name)+'|'+normalizeKey(category);
+  const inferProductCategory=(p)=>{
+   if(p.category&&String(p.category).trim())return String(p.category).trim();
+   const s=((p.name||'')+' '+(p.url||'')+' '+(p.text||'')).toLowerCase();
+   const rules=[
+    [/notebook|diary|journal|register|paper|sticky note/,'Notebooks & Paper'],
+    [/pen|pencil|marker|crayon|highlighter|eraser|sharpener|stationery|geometry|scale|ruler/,'Stationery'],
+    [/paint|colour|color|brush|canvas|acrylic|watercolor|watercolour|sketch|craft|art set/,'Art & Craft'],
+    [/bag|backpack|pouch|lunch box|bottle|school bag/,'Bags & School Essentials'],
+    [/toy|puzzle|game|doll|blocks|plush/,'Toys & Games'],
+    [/book|story|novel|workbook|activity book/,'Books & Learning'],
+    [/mug|cup|home decor|decor|lamp|organizer|organiser/,'Home & Lifestyle'],
+    [/shirt|t-shirt|dress|kurta|clothing|fashion/,'Fashion & Accessories'],
+    [/phone|mobile|charger|cable|earphone|headphone|electronic/,'Electronics & Accessories']
+   ];
+   for(const [re,cat] of rules)if(re.test(s))return cat;
+   return 'Everyday Essentials';
+  };
+  const category=inferProductCategory(p);const key=normalizeKey(name)+'|'+normalizeKey(category);
   if(products.some(x=>normalizeKey(x.name)+'|'+normalizeKey(x.category)===key)){p._decision='rejected';document.getElementById('siteScanStatus').textContent='This product already exists, so it was skipped.';renderSiteCandidates();return}
   const item={id:Math.max(0,...products.map(x=>Number(x.id)||0))+1,name,price:finalPrice,old:p.oldPrice||finalPrice,category,tag:'',image:p.image||'',sourceUrl:p.url};
   products=[item,...products];if(!persist()){products=products.filter(x=>x!==item);return}p._decision='added';

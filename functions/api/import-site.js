@@ -46,7 +46,7 @@ async function fetchPage(url) {
   if (!/html|xhtml/i.test(type)) throw new Error("The link is not an HTML page.");
   return { html: (await response.text()).slice(0, 900000), url: current.href };
 }
-function extract(html, url, linkText) {
+function extract(html, url, linkText) {\n  const cleanText=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim());
   const metas = {};
   for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
     const tag=m[0], key=(attr(tag,"property")||attr(tag,"name")).toLowerCase(), value=attr(tag,"content");
@@ -59,7 +59,7 @@ function extract(html, url, linkText) {
   if(open>=0&&close>open) title=decode(html.slice(open+1,close).replace(/<[^>]*>/g," ")).trim();
   const clean=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim());
   const productJson=html.match(/"name"\s*:\s*"([^"]{2,180})"[\s\S]{0,1200}?"(?:price|image)"\s*:/i);
-  const name=metas["og:title"]||metas["twitter:title"]||attr((html.match(/<h1\b[^>]*>/i)||[""])[0],"content")||title||linkText||(productJson?decode(productJson[1]):"");
+  const h1Match=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i); const h1=h1Match?cleanText(h1Match[1]):""; const name=metas["og:title"]||metas["twitter:title"]||h1||title||linkText||(productJson?decode(productJson[1]):"");
   let image=metas["og:image"]||metas["twitter:image"]||"";
   if(!image){const im=html.match(/<img\b[^>]*>/i);if(im) image=attr(im[0],"src")||attr(im[0],"data-src")||attr(im[0],"data-lazy-src");}
   try{if(image) image=new URL(image,url).href;}catch{image="";}
@@ -98,7 +98,7 @@ export async function onRequestPost({ request }) {
         const page = await fetchPage(url);
         const item = extract(page.html, page.url, text);
         const structuredProduct = /"@type"\s*:\s*"Product"/i.test(page.html) || /"@type"\s*:\s*\[[^\]]*"Product"/i.test(page.html);
-        if (item.name && (item.image || item.price !== null || structuredProduct || likelyProduct(url, item.name))) products.push(item);
+        if (item.name && item.name.length > 1 && !/^(home|about us|contact us|privacy policy|terms and conditions|login|sign in|cart|checkout)$/i.test(item.name.trim())) products.push(item);
       } catch {}
     }
     return reply({ products, scanned: orderedCandidates.length, note: products.length ? "" : (orderedCandidates.length ? "Found links, but the shop may block automated product details. Try a category page or another supplier." : "No internal product links found on this page. Paste a category/search-results page rather than a homepage.") });

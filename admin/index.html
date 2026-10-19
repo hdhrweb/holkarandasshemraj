@@ -7,6 +7,7 @@
 <nav class="tabs"><button type="button" class="tab active" data-tab="products" onclick="window.activateAdminTab&&window.activateAdminTab('products')">Products & photos</button><button type="button" class="tab" data-tab="bulk" onclick="window.activateAdminTab&&window.activateAdminTab('bulk')">Bulk upload ✦</button><button type="button" class="tab" data-tab="branding" onclick="window.activateAdminTab&&window.activateAdminTab('branding')">Logo & store details</button><button type="button" class="tab" data-tab="design" onclick="window.activateAdminTab&&window.activateAdminTab('design')">Design & layout</button></nav>
 <section id="products" class="layout">
 <div class="panel"><h2 id="formTitle">Add a product</h2><p class="sub">Every product photo, name, price and category can be changed here. Use a photo URL or upload an image.</p>
+<div class="notice" style="margin:0 0 16px;background:#f5f0fb"><h3 style="margin:0 0 6px;font-size:16px">Import from product link ✨</h3><p class="sub" style="margin:0 0 12px">Paste a supplier or product page URL. We’ll try to read the name, photo and price so you can review them before adding.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="importProductUrl" type="url" placeholder="https://supplier.com/product-page" style="flex:1;min-width:220px;background:white;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit"><button class="btn" type="button" id="fetchProductUrl">Fetch details</button></div><div id="urlImportStatus" class="sub" aria-live="polite" style="margin-top:10px"></div><div id="urlImportPreview" class="hidden" style="margin-top:12px;padding:12px;background:white;border:1px solid var(--line);border-radius:14px"><div style="display:flex;gap:12px;align-items:flex-start"><img id="urlImportImage" alt="Imported product preview" style="width:100px;height:100px;object-fit:contain;border-radius:10px;background:#f8f5f0"><div style="flex:1;min-width:0"><b id="urlImportName">Product name</b><p id="urlImportPrice" style="margin:6px 0;font-weight:800"></p><p id="urlImportSource" class="sub" style="margin:0;overflow-wrap:anywhere"></p></div></div><p class="sub" id="urlImportNote" style="margin:10px 0"></p><button class="btn" type="button" id="useImportedProduct">Use these details in product form</button></div></div>
 <form id="productForm"><input id="pid" type="hidden"><div class="field"><label>PRODUCT NAME *</label><input id="pname" required placeholder="e.g. Pastel Notebook Set"></div>
 <div class="two"><div class="field"><label>PRICE (₹) *</label><input id="pprice" required type="number" min="0" step="1" placeholder="149"></div><div class="field"><label>OLD PRICE (₹)</label><input id="pold" type="number" min="0" step="1" placeholder="199"></div></div>
 <div class="two"><div class="field"><label>CATEGORY / SEARCH WORDS</label><input id="pcat" placeholder="Notebook, School, Art"></div><div class="field"><label>BADGE</label><input id="ptag" placeholder="NEW ARRIVAL"></div></div>
@@ -152,6 +153,37 @@ document.getElementById('bulkExample').addEventListener('click',()=>{document.ge
 document.getElementById('bulkClear').addEventListener('click',()=>{document.getElementById('bulkText').value='';document.getElementById('bulkFile').value='';document.getElementById('bulkImages').value='';bulkFileText='';bulkPhotoMap={};bulkPreviewArea.innerHTML='';bulkStatus.textContent='Ready. Choose a file or paste your list.'});
 
 
+
+// Product URL importer: fetch metadata through the same-origin Pages Function, review before saving.
+let importedProductDetails=null;
+document.getElementById('fetchProductUrl').addEventListener('click',async()=>{
+ const input=document.getElementById('importProductUrl'),status=document.getElementById('urlImportStatus'),preview=document.getElementById('urlImportPreview'),button=document.getElementById('fetchProductUrl');
+ const url=input.value.trim(); importedProductDetails=null; preview.classList.add('hidden');
+ if(!url){status.textContent='Paste a product page URL first.';return}
+ button.disabled=true;button.textContent='Fetching…';status.textContent='Trying to read product details from that page…';
+ try{
+  const response=await fetch('/api/import-product',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+  const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not read that page.');
+  importedProductDetails={...data,sourceUrl:url};
+  document.getElementById('urlImportName').textContent=data.name||'Name not detected';
+  document.getElementById('urlImportPrice').textContent=data.price!==null&&data.price!==undefined?'Detected price: ₹'+data.price:'Price not detected — enter it manually';
+  document.getElementById('urlImportImage').src=data.image||'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23f5f0fb%22/%3E%3Ctext x=%2250%22 y=%2255%22 text-anchor=%22middle%22 font-size=%2212%22 fill=%22%235b5365%22%3ENo image%3C/text%3E%3C/svg%3E';
+  document.getElementById('urlImportSource').textContent=new URL(url).hostname;
+  document.getElementById('urlImportNote').textContent=data.note||'Review every field before saving. Imported details may be incomplete or out of date.';
+  preview.classList.remove('hidden');status.textContent='Details fetched. Review them below; nothing has been added yet.';
+ }catch(error){status.textContent=(error.message||'Import failed.')+' You can still enter the product details manually or use the image URL.'}
+ finally{button.disabled=false;button.textContent='Fetch details'}
+});
+document.getElementById('useImportedProduct').addEventListener('click',()=>{
+ const p=importedProductDetails;if(!p)return;
+ if(p.name)document.getElementById('pname').value=p.name;
+ if(p.price!==null&&p.price!==undefined&&p.price!=='')document.getElementById('pprice').value=p.price;
+ if(p.oldPrice!==null&&p.oldPrice!==undefined&&p.oldPrice!=='')document.getElementById('pold').value=p.oldPrice;
+ if(p.category)document.getElementById('pcat').value=p.category;
+ if(p.image){document.getElementById('purl').value=p.image;document.getElementById('pPreview').src=p.image;document.getElementById('pfile').value=''}
+ document.getElementById('urlImportStatus').textContent='Details copied into the form. Check the price and photo, then click Save product.';
+ document.getElementById('productForm').scrollIntoView({behavior:'smooth',block:'start'});
+});
 window.addEventListener('error',event=>{const box=document.getElementById('adminError');if(box){box.style.display='block';box.textContent='Admin panel script error: '+(event.message||'unknown error')+'. Reload this page after copying any unsaved changes.'}});
 window.addEventListener('unhandledrejection',event=>{const box=document.getElementById('adminError');if(box){box.style.display='block';box.textContent='Admin panel error: '+String(event.reason||'unknown error')}});
 fillDesign();fillText();

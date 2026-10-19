@@ -60,16 +60,16 @@ function extract(html, url, linkText) {
   if(open>=0&&close>open) title=decode(html.slice(open+1,close).replace(/<[^>]*>/g," ")).trim();
   const clean=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim());
   let productJson=null;
-  for (const block of html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
-    try {
-      const parsed=JSON.parse(block[1].trim());
-      const nodes=Array.isArray(parsed)?parsed:[parsed];
-      for (const node of nodes) {
-        const graph=node?.["@graph"]||[node];
-        const product=graph.find(x=>String(x?.["@type"]||"").toLowerCase().includes("product"));
-        if(product){productJson=product;break;}
-      }
-    } catch {}
+  function findProduct(value) {
+    if (!value || typeof value !== "object") return null;
+    if (Array.isArray(value)) { for (const child of value) { const found=findProduct(child); if(found)return found; } return null; }
+    const types=Array.isArray(value["@type"])?value["@type"]:[value["@type"]];
+    if(types.some(t=>/product/i.test(String(t||"")))) return value;
+    for(const child of Object.values(value)) { const found=findProduct(child); if(found)return found; }
+    return null;
+  }
+  for (const block of html.matchAll(/<script\\b[^>]*type\\s*=\\s*["']application\\/ld\\+json["'][^>]*>([\\s\\S]*?)<\\/script>/gi)) {
+    try { productJson=findProduct(JSON.parse(block[1].replace(/^\\uFEFF/,"").trim())); } catch {}
     if(productJson) break;
   }
   const h1Match=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i); const h1=h1Match?cleanText(h1Match[1]):"";

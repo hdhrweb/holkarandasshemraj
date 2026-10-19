@@ -31,7 +31,7 @@ function parsePage(html,url){
  if(typeof price==="number"&&!Number.isFinite(price))price=null;
  let image=clean(p.image)||clean(metas["og:image"])||clean(metas["og:image:url"])||clean(metas["twitter:image"])||clean(metas["twitter:image:src"]);
  if(image){try{image=new URL(image,url).href}catch{image=""}}
-  const titleMatch=html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);
+  const titleMatch=html.match(/<title[^>]*>(.*?)<\/title>/i);
   const titleText=titleMatch?titleMatch[1].replace(/<[^>]+>/g," "):"";
   let name=clean(p.name)||clean(metas["og:title"])||clean(metas["twitter:title"])||clean(metas["title"])||clean(titleText)||"";
  let category=clean(p.category)||clean(metas["product:category"])||"";

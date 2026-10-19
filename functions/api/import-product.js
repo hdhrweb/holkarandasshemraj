@@ -31,8 +31,10 @@ function parsePage(html,url){
  if(typeof price==="number"&&!Number.isFinite(price))price=null;
  let image=clean(p.image)||clean(metas["og:image"])||clean(metas["og:image:url"])||clean(metas["twitter:image"])||clean(metas["twitter:image:src"]);
  if(image){try{image=new URL(image,url).href}catch{image=""}}
-  const titleMatch=html.match(/<title[^>]*>(.*?)<\/title>/i);
-  const titleText=titleMatch?titleMatch[1].replace(/<[^>]+>/g," "):"";
+  const titleStart=html.toLowerCase().indexOf("<title");
+  const titleOpen=titleStart>=0?html.indexOf(">",titleStart):-1;
+  const titleClose=titleOpen>=0?html.toLowerCase().indexOf("</title>",titleOpen):-1;
+  const titleText=titleOpen>=0&&titleClose>titleOpen?html.slice(titleOpen+1,titleClose).replace(/<[^>]+>/g," "):"";
   let name=clean(p.name)||clean(metas["og:title"])||clean(metas["twitter:title"])||clean(metas["title"])||clean(titleText)||"";
  let category=clean(p.category)||clean(metas["product:category"])||"";
  let oldPrice=offers.highPrice??null;if(oldPrice!==null){oldPrice=Number(String(oldPrice).replace(/[^\d.]/g,""));if(!Number.isFinite(oldPrice))oldPrice=null}

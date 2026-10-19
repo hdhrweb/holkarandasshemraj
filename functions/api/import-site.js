@@ -68,8 +68,8 @@ function extract(html, url, linkText) {
     for(const child of Object.values(value)) { const found=findProduct(child); if(found)return found; }
     return null;
   }
-  for (const block of html.matchAll(/<script\\b[^>]*type\\s*=\\s*["']application\\/ld\\+json["'][^>]*>([\\s\\S]*?)<\\/script>/gi)) {
-    try { productJson=findProduct(JSON.parse(block[1].replace(/^\\uFEFF/,"").trim())); } catch {}
+  for (const block of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try { productJson=findProduct(JSON.parse(block[1].replace(/^\uFEFF/,"").trim())); } catch {}
     if(productJson) break;
   }
   const h1Match=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i); const h1=h1Match?cleanText(h1Match[1]):"";

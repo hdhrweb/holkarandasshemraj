@@ -76,6 +76,42 @@ function extract(html,url,linkText){
  if(!image){const im=html.match(/<img\b[^>]*>/i);if(im){const tag=im[0],src=(tag.match(/\b(?:src|data-src|data-lazy-src)\s*=\s*["']([^"']+)/i)||[])[1];try{image=src?new URL(decode(src),url).href:""}catch{image=""}}}
  return {name:clean(name).slice(0,180),image,price:raw,oldPrice:null,category:clean(category).slice(0,80),url};
 }
+function addCandidate(candidates, href, text, baseUrl) {
+  try {
+    const link = new URL(href, baseUrl);
+    const base = new URL(baseUrl);
+    if (link.hostname !== base.hostname || !["http:","https:"].includes(link.protocol)) return;
+    link.hash = "";
+    if (/\\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml|json)$/i.test(link.pathname)) return;
+    if (/\\/(cart|account|login|logout|search|blog|about|contact|policy|privacy|terms|checkout|wishlist|register)(\\/|$)/i.test(link.pathname)) return;
+    if (link.href === base.href) return;
+    const key = link.href;
+    const priority = likelyProduct(link.pathname, text) ? 0 : (/\\/(products?|p|dp|itm|item)(\\/|$)/i.test(link.pathname) ? 0 : 1);
+    const old = candidates.get(key);
+    if (!old || priority < old.priority || (!old.text && text)) candidates.set(key, {text: text || "", priority});
+  } catch {}
+}
+function discoverJsonLd(html, candidates, baseUrl) {
+  function walk(v) {
+    if (!v || typeof v !== "object") return;
+    if (Array.isArray(v)) { for (const x of v) walk(x); return; }
+    const types = Array.isArray(v["@type"]) ? v["@type"] : [v["@type"]];
+    const isProduct = types.some(t => /product/i.test(t || ""));
+    const url = v.url || v["@id"] || v.item?.url || v.item?.["@id"];
+    if (isProduct && url) addCandidate(candidates, typeof url === "object" ? (url.url || url["@id"]) : url, v.name || v.item?.name || "", baseUrl);
+    if (/ItemList/i.test(types.join(" ")) && Array.isArray(v.itemListElement)) {
+      for (const entry of v.itemListElement) {
+        const item = entry?.item || entry;
+        const u = item?.url || item?.["@id"];
+        if (u) addCandidate(candidates, typeof u === "object" ? (u.url || u["@id"]) : u, item?.name || "", baseUrl);
+      }
+    }
+    for (const [k, val] of Object.entries(v)) if (["@graph","mainEntity","mainEntityOfPage","itemListElement","item","hasVariant"].includes(k) || Array.isArray(val)) walk(val);
+  }
+  for (const m of html.matchAll(/<script\\b[^>]*type\\s*=\\s*["']application\\/ld\\+json["'][^>]*>([\\s\\S]*?)<\\/script>/gi)) {
+    try { walk(JSON.parse(m[1].replace(/^\\uFEFF/, "").trim())); } catch {}
+  }
+}
 export async function onRequestPost({ request }) {
   let body; try { body = await request.json(); } catch { return reply({ error: "Send a valid website URL." }, 400); }
   const target = publicUrl(body?.url);
@@ -83,31 +119,47 @@ export async function onRequestPost({ request }) {
   try {
     const home = await fetchPage(target);
     const candidates = new Map();
-    for (const m of home.html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/gi)) {
+    discoverJsonLd(home.html, candidates, home.url);
+    for (const m of home.html.matchAll(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)) {
       const tag = m[0], href = attr(tag, "href");
-      const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ")).trim().slice(0, 140);
-      if (!href) continue;
-      let link; try { link = new URL(href, home.url); } catch { continue; }
-      if (link.hostname !== new URL(home.url).hostname || !["http:","https:"].includes(link.protocol)) continue;
-      link.hash = "";
-      link.search = "";
-      if (link.href === home.url || /\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml)$/i.test(link.pathname)) continue;
-      if (/\/(cart|account|login|logout|search|blog|about|contact|policy|privacy|terms|checkout|wishlist|register|pages|collections)(\/|$)/i.test(link.pathname)) continue;
-      if (!candidates.has(link.href)) candidates.set(link.href, {text, priority: likelyProduct(link.pathname, text) ? 0 : 1});
-      if (candidates.size >= 80) break;
+      const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ")).trim().slice(0, 180);
+      if (href) addCandidate(candidates, href, text, home.url);
     }
-    const products = [];
-    const orderedCandidates = [...candidates.entries()].sort((a,b)=>a[1].priority-b[1].priority).slice(0,35);
-    for (const [url, info] of orderedCandidates) {
-      const text = info.text;
+    // Follow category/collection links and collect product links from those pages too.
+    const categoryLinks = [...candidates.entries()].filter(([u, v]) => v.priority > 0 && /category|collection|catalog|shop|store|stationery|art|book|product/i.test(u + " " + v.text)).slice(0, 8);
+    for (const [u] of categoryLinks) {
       try {
-        const page = await fetchPage(url);
-        const item = extract(page.html, page.url, text);
-        const structuredProduct = /"@type"\s*:\s*"Product"/i.test(page.html) || /"@type"\s*:\s*\[[^\]]*"Product"/i.test(page.html);
-        if (item.name && item.name.length > 1 && !/^(home|about us|contact us|privacy policy|terms and conditions|login|sign in|cart|checkout)$/i.test(item.name.trim())) products.push(item);
+        const page = await fetchPage(u);
+        discoverJsonLd(page.html, candidates, page.url);
+        for (const m of page.html.matchAll(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)) {
+          const tag = m[0], href = attr(tag, "href");
+          const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ")).trim().slice(0, 180);
+          if (href) addCandidate(candidates, href, text, page.url);
+        }
       } catch {}
     }
-    return reply({ products, scanned: orderedCandidates.length, note: products.length ? "" : (orderedCandidates.length ? "Found links, but the shop may block automated product details. Try a category page or another supplier." : "No internal product links found on this page. Paste a category/search-results page rather than a homepage.") });
+    const ordered = [...candidates.entries()].sort((a,b)=>a[1].priority-b[1].priority).slice(0,100);
+    const results = await Promise.all(ordered.map(async ([url, info]) => {
+      try {
+        const page = await fetchPage(url);
+        const item = extract(page.html, page.url, info.text);
+        const hasProductSignals = /"@type"\\s*:\\s*"Product"/i.test(page.html) ||
+          /"@type"\\s*:\\s*\\[[^\\]]*"Product"/i.test(page.html) ||
+          /product:price:amount|product:category|og:price:amount/i.test(page.html) ||
+          /\\/(product|products|item|dp|p)\\//i.test(new URL(page.url).pathname);
+        const title = (item.name || "").trim();
+        if (!hasProductSignals || title.length < 2 || /^(home|about us|contact us|privacy policy|terms and conditions|login|sign in|cart|checkout|shop|products|collections|catalog)$/i.test(title)) return null;
+        item.category = item.category || "";
+        return item;
+      } catch { return null; }
+    }));
+    const seen = new Set(), products = [];
+    for (const p of results.filter(Boolean)) {
+      const key = (p.url || "").split("?")[0].replace(/\\/$/, "").toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key); products.push(p);
+    }
+    return reply({ products, scanned: ordered.length, note: products.length ? "" : (ordered.length ? "This supplier is hiding product data from automated requests. Try its category page or paste a sitemap URL." : "No product links found. Paste a category/search-results page or the supplier sitemap URL.") });
   } catch (e) {
     return reply({ error: e?.name === "TimeoutError" ? "The site took too long to respond." : (e?.message || "Could not scan this site.") }, 502);
   }

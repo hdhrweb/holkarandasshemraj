@@ -161,6 +161,16 @@ export async function onRequestPost({ request }) {
         }
       } catch {}
     }
+    // The supplier's /sitemaps endpoint can be an HTML sitemap, not XML.
+    try {
+      const sitemapPage = await fetchPage(new URL("/sitemaps", home.url));
+      for (const m of sitemapPage.html.matchAll(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)) {
+        const tag=m[0], href=attr(tag,"href");
+        const label=decode(tag.replace(/<[^>]*>/g," ").replace(/\\s+/g," ")).trim().slice(0,180);
+        if(href)addCandidate(candidates,href,label,sitemapPage.url);
+      }
+      discoverJsonLd(sitemapPage.html,candidates,sitemapPage.url);
+    } catch {}
     // Follow category/collection links and collect product links from those pages too.
     const categoryLinks = [...candidates.entries()].filter(([u, v]) => /category|collection|catalog|shop|store|stationery|art|book|product|notebook|marker|pen|pencil|adhesive|geometry|early-learning|office-supplies/i.test(u + " " + v.text)).slice(0, 20);
     for (const [u] of categoryLinks) {

@@ -126,7 +126,7 @@ export async function onRequestPost({ request }) {
       if (href) addCandidate(candidates, href, text, home.url);
     }
     // Follow category/collection links and collect product links from those pages too.
-    const categoryLinks = [...candidates.entries()].filter(([u, v]) => v.priority > 0 && /category|collection|catalog|shop|store|stationery|art|book|product/i.test(u + " " + v.text)).slice(0, 8);
+    const categoryLinks = [...candidates.entries()].filter(([u, v]) => /category|collection|catalog|shop|store|stationery|art|book|product|notebook|marker|pen|pencil|adhesive|geometry|early-learning|office-supplies/i.test(u + " " + v.text)).slice(0, 20);
     for (const [u] of categoryLinks) {
       try {
         const page = await fetchPage(u);
@@ -143,12 +143,14 @@ export async function onRequestPost({ request }) {
       try {
         const page = await fetchPage(url);
         const item = extract(page.html, page.url, info.text);
-        const hasProductSignals = /"@type"\s*:\s*"Product"/i.test(page.html) ||
+        const hasStructuredProduct = /"@type"\s*:\s*"Product"/i.test(page.html) ||
           /"@type"\s*:\s*\[[^\]]*"Product"/i.test(page.html) ||
-          /product:price:amount|product:category|og:price:amount/i.test(page.html) ||
-          /\/(product|products|item|dp|p)\//i.test(new URL(page.url).pathname);
+          /product:price:amount|product:category|og:price:amount/i.test(page.html);
+        const pathLooksProduct = /product|item|sku|notebook|marker|pencil|pen|geometry|adhesive|crayon|paint|colour|color|brush|clay|glue|sharpener|eraser|ink/i.test(new URL(page.url).pathname);
         const title = (item.name || "").trim();
-        if (!hasProductSignals || title.length < 2 || /^(home|about us|contact us|privacy policy|terms and conditions|login|sign in|cart|checkout|shop|products|collections|catalog)$/i.test(title)) return null;
+        const hasUsefulDetails = !!item.image || item.price !== null;
+        if (title.length < 2 || /^(home|about us|contact us|privacy policy|terms and conditions|login|sign in|cart|checkout|shop|products|collections|catalog|search results)$/i.test(title)) return null;
+        if (!hasStructuredProduct && !pathLooksProduct && !hasUsefulDetails) return null;
         item.category = item.category || "";
         return item;
       } catch { return null; }

@@ -187,7 +187,8 @@ window.decideSiteProduct=function(index,add){
  const pending=siteCandidates.filter(x=>x._decision==='pending').length;
  document.getElementById('siteScanStatus').textContent='Added/rejected choices saved. '+pending+' candidate(s) still need review.';
 };
-\n// Product URL importer: fetch metadata through the same-origin Pages Function, review before saving.
+
+// Product URL importer: fetch metadata through the same-origin Pages Function, review before saving.
 let importedProductDetails=null;
 document.getElementById('fetchProductUrl').addEventListener('click',async()=>{
  const input=document.getElementById('importProductUrl'),status=document.getElementById('urlImportStatus'),preview=document.getElementById('urlImportPreview'),button=document.getElementById('fetchProductUrl');

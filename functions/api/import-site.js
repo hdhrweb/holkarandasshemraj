@@ -21,10 +21,11 @@ function attr(tag, key) {
 function likelyProduct(url, text) {
   const path = url.toLowerCase();
   const s = (path + " " + text).toLowerCase();
-  if (/\\/(cart|account|login|logout|search|blog|about|contact|policy|privacy|terms|checkout|wishlist|register|pages|collections)\\b/.test(path)) return false;
+  if (["/cart","/account","/login","/logout","/search","/blog","/about","/contact","/policy","/privacy","/terms","/checkout","/wishlist","/register","/pages","/collections"].some(x=>path.includes(x))) return false;
   if (/^(home|about|contact|login|sign in|register|cart|checkout|blog|faq|privacy policy|terms)$/i.test((text || "").trim())) return false;
-  return /product|products|item|shop|catalog|p\\/|\\/p\\/|\\/dp\\/|\\/itm\\//.test(s);
+  return ["product","products","item","shop","catalog","/p/","/dp/","/itm/"].some(x=>s.includes(x));
 }
+
 async function fetchPage(url) {
   let current = url, response;
   for (let i = 0; i < 4; i++) {

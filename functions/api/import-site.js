@@ -43,7 +43,8 @@ function inferCategory(name, url, category="") {
   for(const [re,cat] of rules) if(re.test(s)) return cat;
   return "Everyday Essentials";
 }
-\nasync function fetchPage(url) {
+
+async function fetchPage(url) {
   let current = url, response;
   for (let i = 0; i < 4; i++) {
     if (!publicUrl(current.href)) throw new Error("Redirect to restricted address blocked.");

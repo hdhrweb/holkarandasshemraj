@@ -48,28 +48,28 @@ async function fetchPage(url) {
 }
 function extract(html, url, linkText) {
   const metas = {};
-  for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
-    const tag = m[0], key = (attr(tag, "property") || attr(tag, "name")).toLowerCase();
-    const value = attr(tag, "content");
-    if (key && value) metas[key] = value;
+  for (const m of html.matchAll(/<meta\\b[^>]*>/gi)) {
+    const tag=m[0], key=(attr(tag,"property")||attr(tag,"name")).toLowerCase(), value=attr(tag,"content");
+    if(key&&value) metas[key]=value;
   }
-  let title = "";
-  const titleAt = html.toLowerCase().indexOf("<title");
-  const open = titleAt >= 0 ? html.indexOf(">", titleAt) : -1;
-  const close = open >= 0 ? html.toLowerCase().indexOf("</title>", open) : -1;
-  if (open >= 0 && close > open) title = decode(html.slice(open + 1, close).replace(/<[^>]*>/g, " ")).trim();
-  const name = metas["og:title"] || metas["twitter:title"] || title || linkText || "";
-  let image = metas["og:image"] || metas["twitter:image"] || "";
-  try { if (image) image = new URL(image, url).href; } catch { image = ""; }
-  let rawPrice = metas["product:price:amount"] || metas["og:price:amount"] || "";
-  if (!rawPrice) {
-    const m = html.match(/"price"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)/i);
-    if (m) rawPrice = m[1];
-  }
-  const price = rawPrice !== "" && Number.isFinite(Number(rawPrice)) ? Number(rawPrice) : null;
-  const category = metas["product:category"] || "";
-  return { name: name.slice(0, 180), image, price, oldPrice: null, category: category.slice(0, 80), url };
+  let title="";
+  const titleAt=html.toLowerCase().indexOf("<title");
+  const open=titleAt>=0?html.indexOf(">",titleAt):-1;
+  const close=open>=0?html.toLowerCase().indexOf("</title>",open):-1;
+  if(open>=0&&close>open) title=decode(html.slice(open+1,close).replace(/<[^>]*>/g," ")).trim();
+  const clean=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim());
+  const productJson=html.match(/"name"\\s*:\\s*"([^"]{2,180})"[\\s\\S]{0,1200}?"(?:price|image)"\\s*:/i);
+  const name=metas["og:title"]||metas["twitter:title"]||attr((html.match(/<h1\\b[^>]*>/i)||[""])[0],"content")||title||linkText||(productJson?decode(productJson[1]):"");
+  let image=metas["og:image"]||metas["twitter:image"]||"";
+  if(!image){const im=html.match(/<img\\b[^>]*>/i);if(im) image=attr(im[0],"src")||attr(im[0],"data-src")||attr(im[0],"data-lazy-src");}
+  try{if(image) image=new URL(image,url).href;}catch{image="";}
+  let rawPrice=metas["product:price:amount"]||metas["og:price:amount"]||"";
+  if(!rawPrice){const matches=[...html.matchAll(/(?:itemprop=["']price["'][^>]*content=["']([^"']+)|"price"\\s*:\\s*"?([0-9]+(?:\\.[0-9]+)?))/gi)];if(matches.length)rawPrice=matches[0][1]||matches[0][2]||"";}
+  const price=rawPrice!==""&&Number.isFinite(Number(rawPrice))?Number(rawPrice):null;
+  const category=metas["product:category"]||"";
+  return {name:clean(name).slice(0,180),image,price,oldPrice:null,category:clean(category).slice(0,80),url};
 }
+
 export async function onRequestPost({ request }) {
   let body; try { body = await request.json(); } catch { return reply({ error: "Send a valid website URL." }, 400); }
   const target = publicUrl(body?.url);

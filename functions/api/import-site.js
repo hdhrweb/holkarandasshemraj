@@ -26,7 +26,24 @@ function likelyProduct(url, text) {
   return ["product","products","item","shop","catalog","/p/","/dp/","/itm/"].some(x=>s.includes(x));
 }
 
-async function fetchPage(url) {
+function inferCategory(name, url, category="") {
+  if (category && category.trim()) return category.trim().slice(0,80);
+  const s=(String(name||"")+" "+String(url||"")).toLowerCase().replace(/[-_/]+/g," ");
+  const rules=[
+    [/notebook|notepad|paper|register|diary|journal|writing pad/,"Notebooks & Paper"],
+    [/marker|pencil|crayon|paint|colour|color|brush|canvas|clay|glue|adhesive|eraser|sharpener|sketch|acrylic|art|craft|geometry|watercolou?r/,"Art & Craft"],
+    [/pen|ink|stationery|highlighter|correction|stapler|office supply/,"Stationery"],
+    [/school bag|backpack|lunch bag|pencil case|school essential/,"Bags & School Essentials"],
+    [/toy|puzzle|game|doll|blocks|plush/,"Toys & Games"],
+    [/book|story|novel|workbook|learning|activity book/,"Books & Learning"],
+    [/mug|cup|home decor|decor|lamp|organizer|organiser/,"Home & Lifestyle"],
+    [/shirt|t-shirt|dress|kurta|clothing|fashion/,"Fashion & Accessories"],
+    [/phone|mobile|charger|cable|earphone|headphone|electronic/,"Electronics & Accessories"]
+  ];
+  for(const [re,cat] of rules) if(re.test(s)) return cat;
+  return "Everyday Essentials";
+}
+\nasync function fetchPage(url) {
   let current = url, response;
   for (let i = 0; i < 4; i++) {
     if (!publicUrl(current.href)) throw new Error("Redirect to restricted address blocked.");
@@ -125,7 +142,7 @@ export async function onRequestPost({ request }) {
       const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ")).trim().slice(0, 180);
       if (href) addCandidate(candidates, href, text, home.url);
     }
-    // Follow category/collection links and collect product links from those pages too.
+    // Also read public XML sitemap URLs so deeply nested products are not missed.\n    const sitemapUrls = new Set([new URL("/sitemap.xml", home.url).href, new URL("/sitemaps", home.url).href]);\n    for (const sm of [...sitemapUrls]) {\n      try {\n        const response = await fetch(sm, {headers: {"user-agent":"Mozilla/5.0 (compatible; HDHRSiteImporter/1.0)","accept":"application/xml,text/xml,text/html,*/*"}, signal:AbortSignal.timeout(5000)});\n        if (!response.ok) continue;\n        const xml=(await response.text()).slice(0,1500000);\n        for (const match of xml.matchAll(/<loc>\\s*([^<]+)\\s*<\\/loc>/gi)) {\n          const loc=decode(match[1].trim());\n          if (/sitemap/i.test(loc) && /xml/i.test(loc) && sitemapUrls.size<8) sitemapUrls.add(loc);\n          else if (loc) addCandidate(candidates,loc,"",home.url);\n        }\n      } catch {}\n    }\n    for (const sm of [...sitemapUrls].slice(2,8)) {\n      try { const response=await fetch(sm,{headers:{"user-agent":"Mozilla/5.0","accept":"application/xml,text/xml,*/*"},signal:AbortSignal.timeout(5000)}); if(!response.ok)continue; const xml=(await response.text()).slice(0,1500000); for(const m of xml.matchAll(/<loc>\\s*([^<]+)\\s*<\\/loc>/gi)) addCandidate(candidates,decode(m[1].trim()),"",home.url); } catch {}\n    }\n    // Follow category/collection links and collect product links from those pages too.
     const categoryLinks = [...candidates.entries()].filter(([u, v]) => /category|collection|catalog|shop|store|stationery|art|book|product|notebook|marker|pen|pencil|adhesive|geometry|early-learning|office-supplies/i.test(u + " " + v.text)).slice(0, 20);
     for (const [u] of categoryLinks) {
       try {
@@ -138,7 +155,7 @@ export async function onRequestPost({ request }) {
         }
       } catch {}
     }
-    const ordered = [...candidates.entries()].sort((a,b)=>a[1].priority-b[1].priority).slice(0,100);
+    const ordered = [...candidates.entries()].sort((a,b)=>a[1].priority-b[1].priority).slice(0,140);
     const results = await Promise.all(ordered.map(async ([url, info]) => {
       try {
         const page = await fetchPage(url);
@@ -151,7 +168,7 @@ export async function onRequestPost({ request }) {
         const hasUsefulDetails = !!item.image || item.price !== null;
         if (title.length < 2 || /^(home|about us|contact us|privacy policy|terms and conditions|login|sign in|cart|checkout|shop|products|collections|catalog|search results)$/i.test(title)) return null;
         if (!hasStructuredProduct && !pathLooksProduct && !hasUsefulDetails) return null;
-        item.category = item.category || "";
+        item.category = inferCategory(item.name, item.url, item.category);
         return item;
       } catch { return null; }
     }));

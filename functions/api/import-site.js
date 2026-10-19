@@ -58,15 +58,29 @@ function extract(html, url, linkText) {\n  const cleanText=s=>decode(String(s||"
   const close=open>=0?html.toLowerCase().indexOf("</title>",open):-1;
   if(open>=0&&close>open) title=decode(html.slice(open+1,close).replace(/<[^>]*>/g," ")).trim();
   const clean=s=>decode(String(s||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim());
-  const productJson=html.match(/"name"\s*:\s*"([^"]{2,180})"[\s\S]{0,1200}?"(?:price|image)"\s*:/i);
-  const h1Match=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i); const h1=h1Match?cleanText(h1Match[1]):""; const name=metas["og:title"]||metas["twitter:title"]||h1||title||linkText||(productJson?decode(productJson[1]):"");
-  let image=metas["og:image"]||metas["twitter:image"]||"";
+  let productJson=null;
+  for (const block of html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const parsed=JSON.parse(block[1].trim());
+      const nodes=Array.isArray(parsed)?parsed:[parsed];
+      for (const node of nodes) {
+        const graph=node?.["@graph"]||[node];
+        const product=graph.find(x=>String(x?.["@type"]||"").toLowerCase().includes("product"));
+        if(product){productJson=product;break;}
+      }
+    } catch {}
+    if(productJson) break;
+  }
+  const h1Match=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i); const h1=h1Match?cleanText(h1Match[1]):"";
+  const name=metas["og:title"]||metas["twitter:title"]||productJson?.name||h1||title||linkText||"";
+
+  let image=metas["og:image"]||metas["twitter:image"]||productJson?.image?.url||productJson?.image?.[0]?.url||productJson?.image||"";
   if(!image){const im=html.match(/<img\b[^>]*>/i);if(im) image=attr(im[0],"src")||attr(im[0],"data-src")||attr(im[0],"data-lazy-src");}
   try{if(image) image=new URL(image,url).href;}catch{image="";}
-  let rawPrice=metas["product:price:amount"]||metas["og:price:amount"]||"";
+  let rawPrice=metas["product:price:amount"]||metas["og:price:amount"]||productJson?.offers?.price||productJson?.offers?.[0]?.price||"";
   if(!rawPrice){const matches=[...html.matchAll(/(?:itemprop=["']price["'][^>]*content=["']([^"']+)|"price"\s*:\s*"?([0-9]+(?:\.[0-9]+)?))/gi)];if(matches.length)rawPrice=matches[0][1]||matches[0][2]||"";}
   const price=rawPrice!==""&&Number.isFinite(Number(rawPrice))?Number(rawPrice):null;
-  const category=metas["product:category"]||"";
+  const category=metas["product:category"]||productJson?.category||"";
   return {name:clean(name).slice(0,180),image,price,oldPrice:null,category:clean(category).slice(0,80),url};
 }
 

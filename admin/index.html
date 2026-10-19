@@ -8,7 +8,7 @@
 <section id="products" class="layout">
 <div class="panel"><h2 id="formTitle">Add a product</h2><p class="sub">Every product photo, name, price and category can be changed here. Use a photo URL or upload an image.</p>
 <div class="notice" style="margin:0 0 16px;background:#f5f0fb"><h3 style="margin:0 0 6px;font-size:16px">Import from product link ✨</h3><p class="sub" style="margin:0 0 12px">Paste a supplier or product page URL. We’ll try to read the name, photo and price so you can review them before adding.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="importProductUrl" type="url" placeholder="https://supplier.com/product-page" style="flex:1;min-width:220px;background:white;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit"><button class="btn" type="button" id="fetchProductUrl">Fetch details</button></div><div id="urlImportStatus" class="sub" aria-live="polite" style="margin-top:10px"></div><div id="urlImportPreview" class="hidden" style="margin-top:12px;padding:12px;background:white;border:1px solid var(--line);border-radius:14px"><div style="display:flex;gap:12px;align-items:flex-start"><img id="urlImportImage" alt="Imported product preview" style="width:100px;height:100px;object-fit:contain;border-radius:10px;background:#f8f5f0"><div style="flex:1;min-width:0"><b id="urlImportName">Product name</b><p id="urlImportPrice" style="margin:6px 0;font-weight:800"></p><p id="urlImportSource" class="sub" style="margin:0;overflow-wrap:anywhere"></p></div></div><p class="sub" id="urlImportNote" style="margin:10px 0"></p><button class="btn" type="button" id="useImportedProduct">Use these details in product form</button></div></div>
-<form id="productForm"><input id="pid" type="hidden"><div class="field"><label>PRODUCT NAME *</label><input id="pname" required placeholder="e.g. Pastel Notebook Set"></div>
+<div class="notice" style="margin:0 0 16px;background:#edf5ed"><h3 style="margin:0 0 6px;font-size:16px">Import products from a whole website ✨</h3><p class="sub" style="margin:0 0 12px">Paste a shop/category/homepage link. We’ll scan product links and show a review list. Add only the products you want; reject the rest.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="importSiteUrl" type="url" placeholder="https://supplier.com/shop" style="flex:1;min-width:220px;background:white;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit"><button class="btn" type="button" id="scanSiteBtn">Scan website</button></div><div id="siteScanStatus" class="sub" aria-live="polite" style="margin-top:10px"></div><div id="siteScanResults" class="product-list" style="margin-top:12px"></div></div><form id="productForm"><input id="pid" type="hidden"><div class="field"><label>PRODUCT NAME *</label><input id="pname" required placeholder="e.g. Pastel Notebook Set"></div>
 <div class="two"><div class="field"><label>PRICE (₹) *</label><input id="pprice" required type="number" min="0" step="1" placeholder="149"></div><div class="field"><label>OLD PRICE (₹)</label><input id="pold" type="number" min="0" step="1" placeholder="199"></div></div>
 <div class="two"><div class="field"><label>CATEGORY / SEARCH WORDS</label><input id="pcat" placeholder="Notebook, School, Art"></div><div class="field"><label>BADGE</label><input id="ptag" placeholder="NEW ARRIVAL"></div></div>
 <div class="field"><label>PRODUCT PHOTO URL</label><input id="purl" type="url" placeholder="https://… (optional if uploading)"></div>
@@ -154,7 +154,40 @@ document.getElementById('bulkClear').addEventListener('click',()=>{document.getE
 
 
 
-// Product URL importer: fetch metadata through the same-origin Pages Function, review before saving.
+// Whole-site product scanner: candidates remain pending until individually approved.
+let siteCandidates=[];
+document.getElementById('scanSiteBtn').addEventListener('click',async()=>{
+ const input=document.getElementById('importSiteUrl'),status=document.getElementById('siteScanStatus'),results=document.getElementById('siteScanResults'),btn=document.getElementById('scanSiteBtn');
+ if(!input.value.trim()){status.textContent='Paste a website or shop page URL first.';return}
+ btn.disabled=true;btn.textContent='Scanning…';status.textContent='Finding product pages (up to 20 at a time)…';results.innerHTML='';siteCandidates=[];
+ try{
+  const res=await fetch('/api/import-site',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:input.value.trim()})});
+  const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not scan this site.');
+  siteCandidates=(data.products||[]).map((p,i)=>({...p,_key:i,_decision:'pending'}));
+  renderSiteCandidates();
+  status.textContent=siteCandidates.length?'Found '+siteCandidates.length+' product candidate(s). Review each one; nothing is added until you click Add.':(data.note||'No product links found on that page. Try a category/shop page.');
+ }catch(e){status.textContent=(e.message||'Scan failed.')+' Some shops block automated scanning; try a category page.'}
+ finally{btn.disabled=false;btn.textContent='Scan website'}
+});
+function renderSiteCandidates(){
+ const results=document.getElementById('siteScanResults');
+ results.innerHTML=siteCandidates.map(p=>'<div class="item" style="align-items:flex-start"><img src="'+esc(p.image||'')+'" alt="" onerror="this.style.visibility=\'hidden\'"><div class="info"><strong>'+esc(p.name||'Product page')+'</strong><small>'+(p.price!==null&&p.price!==undefined?'₹'+Number(p.price).toLocaleString('en-IN')+' · ':'Price not detected · ')+esc(p.url)+'</small><small>'+esc(p.category||'Category not detected')+'</small></div>'+(p._decision==='pending'?'<button type="button" onclick="decideSiteProduct('+p._key+',true)">Add</button><button type="button" class="del" onclick="decideSiteProduct('+p._key+',false)">Reject</button>':'<span class="pill">'+(p._decision==='added'?'ADDED':'REJECTED')+'</span>')+'</div>').join('');
+}
+window.decideSiteProduct=function(index,add){
+ const p=siteCandidates.find(x=>x._key===index);if(!p||p._decision!=='pending')return;
+ if(add){
+  const name=(p.name||'').trim(),price=Number(p.price);
+  if(!name||!Number.isFinite(price)||price<0){alert('Name or price was not detected. Open this product link in the single-product importer or enter its details manually.');return}
+  const category=p.category||'Imported';const key=normalizeKey(name)+'|'+normalizeKey(category);
+  if(products.some(x=>normalizeKey(x.name)+'|'+normalizeKey(x.category)===key)){p._decision='rejected';document.getElementById('siteScanStatus').textContent='This product already exists, so it was skipped.';renderSiteCandidates();return}
+  const item={id:Math.max(0,...products.map(x=>Number(x.id)||0))+1,name,price,old:p.oldPrice||price,category,tag:'',image:p.image||'',sourceUrl:p.url};
+  products=[item,...products];if(!persist()){products=products.filter(x=>x!==item);return}p._decision='added';
+ }else p._decision='rejected';
+ renderSiteCandidates();
+ const pending=siteCandidates.filter(x=>x._decision==='pending').length;
+ document.getElementById('siteScanStatus').textContent='Added/rejected choices saved. '+pending+' candidate(s) still need review.';
+};
+\n// Product URL importer: fetch metadata through the same-origin Pages Function, review before saving.
 let importedProductDetails=null;
 document.getElementById('fetchProductUrl').addEventListener('click',async()=>{
  const input=document.getElementById('importProductUrl'),status=document.getElementById('urlImportStatus'),preview=document.getElementById('urlImportPreview'),button=document.getElementById('fetchProductUrl');

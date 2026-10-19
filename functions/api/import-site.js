@@ -143,7 +143,25 @@ export async function onRequestPost({ request }) {
       const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ")).trim().slice(0, 180);
       if (href) addCandidate(candidates, href, text, home.url);
     }
-    // Also read public XML sitemap URLs so deeply nested products are not missed.\n    const sitemapUrls = new Set([new URL("/sitemap.xml", home.url).href, new URL("/sitemaps", home.url).href]);\n    for (const sm of [...sitemapUrls]) {\n      try {\n        const response = await fetch(sm, {headers: {"user-agent":"Mozilla/5.0 (compatible; HDHRSiteImporter/1.0)","accept":"application/xml,text/xml,text/html,*/*"}, signal:AbortSignal.timeout(5000)});\n        if (!response.ok) continue;\n        const xml=(await response.text()).slice(0,1500000);\n        for (const match of xml.matchAll(/<loc>\\s*([^<]+)\\s*<\\/loc>/gi)) {\n          const loc=decode(match[1].trim());\n          if (/sitemap/i.test(loc) && /xml/i.test(loc) && sitemapUrls.size<8) sitemapUrls.add(loc);\n          else if (loc) addCandidate(candidates,loc,"",home.url);\n        }\n      } catch {}\n    }\n    for (const sm of [...sitemapUrls].slice(2,8)) {\n      try { const response=await fetch(sm,{headers:{"user-agent":"Mozilla/5.0","accept":"application/xml,text/xml,*/*"},signal:AbortSignal.timeout(5000)}); if(!response.ok)continue; const xml=(await response.text()).slice(0,1500000); for(const m of xml.matchAll(/<loc>\\s*([^<]+)\\s*<\\/loc>/gi)) addCandidate(candidates,decode(m[1].trim()),"",home.url); } catch {}\n    }\n    // Follow category/collection links and collect product links from those pages too.
+    // Read public sitemap URLs, including sitemap indexes.
+    const sitemapUrls = new Set([new URL("/sitemap.xml", home.url).href, new URL("/sitemap_index.xml", home.url).href, new URL("/sitemaps", home.url).href]);
+    const sitemapQueue = [...sitemapUrls];
+    for (let si = 0; si < sitemapQueue.length && si < 8; si++) {
+      const sm = sitemapQueue[si];
+      try {
+        const response = await fetch(sm, {headers: {"user-agent":"Mozilla/5.0 (compatible; HDHRSiteImporter/1.0)","accept":"application/xml,text/xml,text/html,*/*"}, signal:AbortSignal.timeout(5000)});
+        if (!response.ok) continue;
+        const xml = (await response.text()).slice(0, 1500000);
+        for (const match of xml.matchAll(/<loc>\s*([^<]+)\s*<\/loc>/gi)) {
+          const loc = decode(match[1].trim());
+          if (!loc) continue;
+          if (/sitemap/i.test(loc) && /\.xml(?:\?|$)/i.test(loc) && sitemapUrls.size < 12 && !sitemapUrls.has(loc)) {
+            sitemapUrls.add(loc); sitemapQueue.push(loc);
+          } else addCandidate(candidates, loc, "", home.url);
+        }
+      } catch {}
+    }
+    // Follow category/collection links and collect product links from those pages too.
     const categoryLinks = [...candidates.entries()].filter(([u, v]) => /category|collection|catalog|shop|store|stationery|art|book|product|notebook|marker|pen|pencil|adhesive|geometry|early-learning|office-supplies/i.test(u + " " + v.text)).slice(0, 20);
     for (const [u] of categoryLinks) {
       try {

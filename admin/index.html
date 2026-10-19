@@ -177,10 +177,17 @@ window.decideSiteProduct=function(index,add){
  const p=siteCandidates.find(x=>x._key===index);if(!p||p._decision!=='pending')return;
  if(add){
   const name=(p.name||'').trim(),price=Number(p.price);
-  if(!name||!Number.isFinite(price)||price<0){alert('Name or price was not detected. Open this product link in the single-product importer or enter its details manually.');return}
+  if(!name){alert('Product name was not detected. Open this link in the single-product importer or enter details manually.');return}
+  let finalPrice=price;
+  if(p.price===null||p.price===undefined||p.price===''||!Number.isFinite(price)||price<0){
+   const entered=prompt('Price was not detected for "'+name+'". Enter its price to add it:', '');
+   if(entered===null)return;
+   finalPrice=Number(String(entered).replace(/[₹,\\s]/g,''));
+   if(!String(entered).trim()||!Number.isFinite(finalPrice)||finalPrice<0){alert('Please enter a valid price (0 or more).');return}
+  }
   const category=p.category||'Imported';const key=normalizeKey(name)+'|'+normalizeKey(category);
   if(products.some(x=>normalizeKey(x.name)+'|'+normalizeKey(x.category)===key)){p._decision='rejected';document.getElementById('siteScanStatus').textContent='This product already exists, so it was skipped.';renderSiteCandidates();return}
-  const item={id:Math.max(0,...products.map(x=>Number(x.id)||0))+1,name,price,old:p.oldPrice||price,category,tag:'',image:p.image||'',sourceUrl:p.url};
+  const item={id:Math.max(0,...products.map(x=>Number(x.id)||0))+1,name,price:finalPrice,old:p.oldPrice||finalPrice,category,tag:'',image:p.image||'',sourceUrl:p.url};
   products=[item,...products];if(!persist()){products=products.filter(x=>x!==item);return}p._decision='added';
  }else p._decision='rejected';
  renderSiteCandidates();

@@ -96,6 +96,32 @@ function extract(html,url,linkText){
  if(!image){const im=html.match(/<img\b[^>]*>/i);if(im){const tag=im[0],src=(tag.match(/\b(?:src|data-src|data-lazy-src)\s*=\s*["']([^"']+)/i)||[])[1];try{image=src?new URL(decode(src),url).href:""}catch{image=""}}}
  return {name:clean(name).slice(0,180),image,price:raw,oldPrice:null,category:clean(category).slice(0,80),url};
 }
+
+function extractListingProducts(html, baseUrl) {
+  const found = [];
+  const clean = s => decode(String(s || "").replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim());
+  for (const m of html.matchAll(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)) {
+    const tag = m[0], href = attr(tag, "href");
+    if (!href) continue;
+    let u; try { u = new URL(href, baseUrl); } catch { continue; }
+    if (u.hostname !== new URL(baseUrl).hostname || !u.pathname.toLowerCase().startsWith("/camlin/")) continue;
+    if (/\\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml|json)$/i.test(u.pathname)) continue;
+    const inner = tag.replace(/^<a\\b[^>]*>/i, "").replace(/<\\/a>$/i, "");
+    const imgTag = (inner.match(/<img\\b[^>]*>/i) || [])[0] || "";
+    const imgAlt = attr(imgTag, "alt") || attr(imgTag, "title");
+    const titleAttr = attr(tag, "title") || attr(tag, "aria-label");
+    const text = clean(inner.replace(/<img\\b[^>]*>/gi, " "));
+    const name = (text.match(/.{2,180}/) || [])[0] || imgAlt || titleAttr || "";
+    const priceMatch = (inner + " " + (m[0].match(/.{0,80}₹\\s*[\\d,]+(?:\\.\\d{1,2})?.{0,40}/) || [""])[0]).match(/(?:₹|Rs\\.?\\s*)\\s*([\\d,]+(?:\\.\\d{1,2})?)/i);
+    let price = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : null;
+    const imageSrc = attr(imgTag, "src") || attr(imgTag, "data-src") || attr(imgTag, "data-lazy-src") || attr(imgTag, "data-original");
+    let image = ""; try { if (imageSrc) image = new URL(imageSrc, baseUrl).href; } catch {}
+    if (name.length < 3 || (!image && price === null)) continue;
+    found.push({ name: name.slice(0,180), image, price, oldPrice:null, category:inferCategory(name,u.href), url:u.href });
+  }
+  return found;
+}
+
 function addCandidate(candidates, href, text, baseUrl) {
   try {
     const link = new URL(href, baseUrl);
@@ -141,6 +167,7 @@ export async function onRequestPost({ request }) {
   try {
     const home = await fetchPage(target);
     const candidates = new Map();
+    const listingProducts = extractListingProducts(home.html, home.url);
     discoverJsonLd(home.html, candidates, home.url);
     for (const m of home.html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/gi)) {
       const tag = m[0], href = attr(tag, "href");
@@ -174,6 +201,7 @@ export async function onRequestPost({ request }) {
         if(href)addCandidate(candidates,href,label,sitemapPage.url);
       }
       discoverJsonLd(sitemapPage.html,candidates,sitemapPage.url);
+      listingProducts.push(...extractListingProducts(sitemapPage.html, sitemapPage.url));
     } catch {}
     // Camlin catalogue pages use nested category/product paths and a shared /sitemaps page.
     // Seed the known Camlin categories, then exclude the sibling Camel art catalogue.
@@ -206,6 +234,7 @@ export async function onRequestPost({ request }) {
       try {
         const page = await fetchPage(u);
         discoverJsonLd(page.html, candidates, page.url);
+        listingProducts.push(...extractListingProducts(page.html, page.url));
         for (const m of page.html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/gi)) {
           const tag = m[0], href = attr(tag, "href");
           const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ")).trim().slice(0, 180);
@@ -231,7 +260,7 @@ export async function onRequestPost({ request }) {
       } catch { return null; }
     }));
     const seen = new Set(), products = [];
-    for (const p of results.filter(Boolean)) {
+    for (const p of [...listingProducts, ...results.filter(Boolean)]) {
       const key = (p.url || "").split("?")[0].replace(/\/$/, "").toLowerCase();
       if (!key || seen.has(key)) continue;
       seen.add(key); products.push(p);

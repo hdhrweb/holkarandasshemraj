@@ -99,20 +99,20 @@ function extract(html,url,linkText){
 
 function extractListingProducts(html, baseUrl) {
   const found = [];
-  const clean = s => decode(String(s || "").replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ").trim());
-  for (const m of html.matchAll(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)) {
+  const clean = s => decode(String(s || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
+  for (const m of html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/gi)) {
     const tag = m[0], href = attr(tag, "href");
     if (!href) continue;
     let u; try { u = new URL(href, baseUrl); } catch { continue; }
     if (u.hostname !== new URL(baseUrl).hostname || !u.pathname.toLowerCase().startsWith("/camlin/")) continue;
-    if (/\\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml|json)$/i.test(u.pathname)) continue;
-    const inner = tag.replace(/^<a\\b[^>]*>/i, "").replace(/<\\/a>$/i, "");
-    const imgTag = (inner.match(/<img\\b[^>]*>/i) || [])[0] || "";
+    if (/\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml|json)$/i.test(u.pathname)) continue;
+    const inner = tag.replace(/^<a\b[^>]*>/i, "").replace(/<\/a>$/i, "");
+    const imgTag = (inner.match(/<img\b[^>]*>/i) || [])[0] || "";
     const imgAlt = attr(imgTag, "alt") || attr(imgTag, "title");
     const titleAttr = attr(tag, "title") || attr(tag, "aria-label");
-    const text = clean(inner.replace(/<img\\b[^>]*>/gi, " "));
+    const text = clean(inner.replace(/<img\b[^>]*>/gi, " "));
     const name = (text.match(/.{2,180}/) || [])[0] || imgAlt || titleAttr || "";
-    const priceMatch = (inner + " " + (m[0].match(/.{0,80}₹\\s*[\\d,]+(?:\\.\\d{1,2})?.{0,40}/) || [""])[0]).match(/(?:₹|Rs\\.?\\s*)\\s*([\\d,]+(?:\\.\\d{1,2})?)/i);
+    const priceMatch = (inner + " " + (m[0].match(/.{0,80}₹\s*[\d,]+(?:\.\d{1,2})?.{0,40}/) || [""])[0]).match(/(?:₹|Rs\.?\s*)\s*([\d,]+(?:\.\d{1,2})?)/i);
     let price = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : null;
     const imageSrc = attr(imgTag, "src") || attr(imgTag, "data-src") || attr(imgTag, "data-lazy-src") || attr(imgTag, "data-original");
     let image = ""; try { if (imageSrc) image = new URL(imageSrc, baseUrl).href; } catch {}

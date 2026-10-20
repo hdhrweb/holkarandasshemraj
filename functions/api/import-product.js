@@ -54,7 +54,7 @@ function parsePage(html,url){
   const keys=["data-src","data-lazy-src","data-original","data-original-src","data-zoom-image","data-srcset","srcset","src"];
   for(const tag of tags){
    for(const key of keys){
-    const match=tag.match(new RegExp("\\b"+key+"\\s*=\\s*["']([^"']*)["']","i"));
+    const match=tag.match(new RegExp("\\b"+key+"\\s*=\\s*[\"']([^\"']*)[\"']","i"));
     if(!match||!match[1])continue;
     let candidate=match[1].trim();
     if(key.includes("srcset"))candidate=candidate.split(",").map(x=>x.trim().split(/\s+/)[0]).filter(Boolean).pop()||"";

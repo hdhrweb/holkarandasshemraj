@@ -127,8 +127,8 @@ function extractListingProducts(html, baseUrl) {
     let u; try { u = new URL(href, baseUrl); } catch { continue; }
     if (u.hostname !== new URL(baseUrl).hostname || !u.pathname.toLowerCase().startsWith("/camlin/")) continue;
     if (/\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml|json)$/i.test(u.pathname)) continue;
-    const inner = tag.replace(/^<a\\b[^>]*>/i, "").replace(/<\\/a>$/i, "");
-    const imageTags = [...inner.matchAll(/<(?:img|source)\\b[^>]*>/gi)].map(x => x[0]);
+    const inner = tag.replace(/^<a\b[^>]*>/i, "").replace(/<\/a>$/i, "");
+    const imageTags = [...inner.matchAll(/<(?:img|source)\b[^>]*>/gi)].map(x => x[0]);
     const imgTag = imageTags[0] || "";
     const imgAlt = attr(imgTag, "alt") || attr(imgTag, "title");
     let cardImage = "";
@@ -139,7 +139,7 @@ function extractListingProducts(html, baseUrl) {
     // Some catalogue cards use a CSS background image instead of an <img>.
     if (!cardImage) {
       const style = attr(tag, "style") || attr(inner, "style");
-      const bg = style.match(/background(?:-image)?\\s*:[^;]*url\\((?:['"])?([^)'"]+)(?:['"])?\\)/i);
+      const bg = style.match(/background(?:-image)?\s*:[^;]*url\((?:['"])?([^)'"]+)(?:['"])?\)/i);
       if (bg) cardImage = resolveImage(bg[1], baseUrl);
     }
     const titleAttr = attr(tag, "title") || attr(tag, "aria-label");

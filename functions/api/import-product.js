@@ -51,16 +51,16 @@ function parsePage(html,url){
  // Supplier pages often omit social/JSON-LD image metadata and lazy-load the real photo.
  // Rank all candidate images instead of accidentally selecting the site logo as the product photo.
  if(!image){
-  const tags=[...html.matchAll(/<(?:img|source)\\b[^>]*>/gi)].map(m=>m[0]);
+  const tags=[...html.matchAll(/<(?:img|source)\b[^>]*>/gi)].map(m=>m[0]);
   const keys=["data-src","data-lazy-src","data-original","data-original-src","data-zoom-image","data-srcset","srcset","src"];
   const candidates=[];
   for(const tag of tags){
-   const alt=(tag.match(/\\b(?:alt|title)\\s*=\\s*["']([^"']*)["']/i)||[])[1]||"";
+   const alt=(tag.match(/\b(?:alt|title)\s*=\s*["']([^"']*)["']/i)||[])[1]||"";
    for(const key of keys){
-    const match=tag.match(new RegExp("\\\\b"+key+"\\\\s*=\\\\s*[\\\"']([^\\\"']*)[\\\"']","i"));
+    const match=tag.match(new RegExp("\\b"+key+"\\s*=\\s*[\"']([^\"']*)[\"']","i"));
     if(!match||!match[1])continue;
     let candidate=match[1].trim();
-    if(key.includes("srcset"))candidate=candidate.split(",").map(x=>x.trim().split(/\\s+/)[0]).filter(Boolean).pop()||"";
+    if(key.includes("srcset"))candidate=candidate.split(",").map(x=>x.trim().split(/\s+/)[0]).filter(Boolean).pop()||"";
     if(!candidate||/^(data:|#|javascript:)/i.test(candidate))continue;
     try{
      const resolved=new URL(candidate,url);
@@ -68,8 +68,8 @@ function parsePage(html,url){
      const value=(resolved.href+" "+alt+" "+tag).toLowerCase();
      if(/logo|favicon|sprite|placeholder|spacer|avatar|payment|social-icon|whatsapp|facebook|instagram|banner|tracking|pixel|loader/.test(value))continue;
      let score=0;
-     if(/product|gallery|catalog|catalogue|uploads|media|images|\\/products?\\//.test(resolved.pathname.toLowerCase()))score+=4;
-     if(/\\.(jpe?g|png|webp)(?:$|[?&])/.test(resolved.href.toLowerCase()))score+=2;
+     if(/product|gallery|catalog|catalogue|uploads|media|images|\/products?\//.test(resolved.pathname.toLowerCase()))score+=4;
+     if(/\.(jpe?g|png|webp)(?:$|[?&])/.test(resolved.href.toLowerCase()))score+=2;
      if(/product|pack|shade|marker|pencil|notebook|camlin|camel/.test((resolved.pathname+" "+alt).toLowerCase()))score+=3;
      if(/width|height/.test(tag.toLowerCase()))score+=1;
      candidates.push({url:resolved.href,score});

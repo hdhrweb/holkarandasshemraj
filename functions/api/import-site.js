@@ -112,8 +112,15 @@ function extract(html,url,linkText){
  if(typeof raw!=="number"||!Number.isFinite(raw))raw=null;
  let category=tidy(p.category)||metas["product:category"]||"";
  if(!image){
-  const imgs=[...html.matchAll(/<img\b[^>]*>/gi)].map(m=>m[0]);
+  const imgs=[...html.matchAll(/<(?:img|source)\b[^>]*>/gi)].map(m=>m[0]);
   for(const tag of imgs){image=imageFromTag(tag,url);if(image)break}
+ }
+ if(!image){
+  const styles=[...html.matchAll(/\bstyle\s*=\s*["']([^"']*background(?:-image)?\s*:[^"']*)["']/gi)].map(m=>m[1]);
+  for(const style of styles){
+   const bg=style.match(/background(?:-image)?\s*:[^;]*url\((?:['"])?([^)'"\s]+)(?:['"])?\)/i);
+   if(bg){image=resolveImage(bg[1],url);if(image)break}
+  }
  }
  return {name:clean(name).slice(0,180),image,price:raw,oldPrice:null,category:clean(category).slice(0,80),url};
 }
@@ -304,12 +311,26 @@ export async function onRequestPost({ request }) {
       }
     };
     await Promise.all(Array.from({length: Math.min(6, ordered.length)}, () => worker()));
-    const seen = new Set(), products = [];
+    // Merge listing-card results with the same product page's metadata. Listing cards
+    // often have a title but no usable image; do not let them overwrite richer page data.
+    const byUrl = new Map();
     for (const p of [...listingProducts, ...results.filter(Boolean)]) {
       const key = (p.url || "").split("?")[0].replace(/\/$/, "").toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.add(key); products.push(p);
+      if (!key) continue;
+      const prior = byUrl.get(key);
+      if (!prior) { byUrl.set(key, { ...p }); continue; }
+      byUrl.set(key, {
+        ...prior,
+        ...p,
+        name: (p.name || "").length > (prior.name || "").length ? p.name : (prior.name || p.name),
+        image: p.image || prior.image || "",
+        price: p.price !== null && p.price !== undefined ? p.price : prior.price,
+        oldPrice: p.oldPrice !== null && p.oldPrice !== undefined ? p.oldPrice : prior.oldPrice,
+        category: p.category || prior.category || "",
+        url: p.url || prior.url
+      });
     }
+    const products = [...byUrl.values()];
     return reply({ products, scanned: ordered.length, note: products.length ? "" : (ordered.length ? "This supplier is hiding product data from automated requests. Try its category page or paste a sitemap URL." : "No product links found. Paste a category/search-results page or the supplier sitemap URL.") });
   } catch (e) {
     return reply({ error: e?.name === "TimeoutError" ? "The site took too long to respond." : (e?.message || "Could not scan this site.") }, 502);

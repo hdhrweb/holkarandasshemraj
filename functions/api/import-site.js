@@ -64,6 +64,25 @@ async function fetchPage(url) {
   if (!/html|xhtml/i.test(type)) throw new Error("The link is not an HTML page.");
   return { html: (await response.text()).slice(0, 900000), url: current.href };
 }
+function resolveImage(raw, baseUrl) {
+  const value = decode(String(raw || "").trim()).replace(/&amp;/g, "&");
+  if (!value || /^(data:image\/(?:gif|png);base64,|#|javascript:)/i.test(value)) return "";
+  try {
+    const u = new URL(value, baseUrl);
+    return ["http:", "https:"].includes(u.protocol) ? u.href : "";
+  } catch { return ""; }
+}
+function imageFromTag(tag, baseUrl) {
+  const attrs = ["data-src", "data-lazy-src", "data-original", "data-original-src", "data-zoom-image", "data-srcset", "srcset", "src"];
+  for (const key of attrs) {
+    const raw = attr(tag, key);
+    if (!raw) continue;
+    const candidate = key.includes("srcset") ? raw.split(",").map(x => x.trim().split(/\s+/)[0]).filter(Boolean).pop() : raw;
+    const resolved = resolveImage(candidate, baseUrl);
+    if (resolved && !/transparent|placeholder|spacer/i.test(resolved)) return resolved;
+  }
+  return "";
+}
 function extract(html,url,linkText){
  const metas={};
  for(const tagMatch of html.matchAll(/<meta\b[^>]*>/gi)){
@@ -84,8 +103,7 @@ function extract(html,url,linkText){
  const tidy=v=>Array.isArray(v)?tidy(v[0]):v&&typeof v==="object"?(v.url||v["@id"]||v.contentUrl||""):typeof v==="string"?decode(v.trim()):"";
  const titleMatch=html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i),h1Match=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
  const name=tidy(p.name)||metas["og:title"]||metas["twitter:title"]||clean(h1Match?.[1])||clean(titleMatch?.[1])||linkText||"";
- let image=tidy(p.image)||metas["og:image"]||metas["og:image:url"]||metas["twitter:image"]||"";
- try{if(image)image=new URL(image,url).href}catch{image=""}
+ let image=resolveImage(tidy(p.image)||metas["og:image"]||metas["og:image:url"]||metas["twitter:image"]||"",url);
  let raw=offers.price??offers.lowPrice??p.price??metas["product:price:amount"]??metas["og:price:amount"]??null;
  // Camlin product pages sometimes expose the visible MRP without Product JSON-LD price metadata.
  if(raw==null){const visiblePrice=html.match(/₹\s*([\d,]+(?:\.\d{1,2})?)/);if(visiblePrice)raw=visiblePrice[1];}
@@ -93,7 +111,10 @@ function extract(html,url,linkText){
  if(typeof raw==="string"){raw=raw.replace(/[^\d.,]/g,"").replace(/,(?=\d{3}(?:\D|$))/g,"").replace(",",".");raw=raw?Number(raw):null}
  if(typeof raw!=="number"||!Number.isFinite(raw))raw=null;
  let category=tidy(p.category)||metas["product:category"]||"";
- if(!image){const im=html.match(/<img\b[^>]*>/i);if(im){const tag=im[0],src=(tag.match(/\b(?:src|data-src|data-lazy-src)\s*=\s*["']([^"']+)/i)||[])[1];try{image=src?new URL(decode(src),url).href:""}catch{image=""}}}
+ if(!image){
+  const imgs=[...html.matchAll(/<img\b[^>]*>/gi)].map(m=>m[0]);
+  for(const tag of imgs){image=imageFromTag(tag,url);if(image)break}
+ }
  return {name:clean(name).slice(0,180),image,price:raw,oldPrice:null,category:clean(category).slice(0,80),url};
 }
 
@@ -107,15 +128,19 @@ function extractListingProducts(html, baseUrl) {
     if (u.hostname !== new URL(baseUrl).hostname || !u.pathname.toLowerCase().startsWith("/camlin/")) continue;
     if (/\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml|json)$/i.test(u.pathname)) continue;
     const inner = tag.replace(/^<a\b[^>]*>/i, "").replace(/<\/a>$/i, "");
-    const imgTag = (inner.match(/<img\b[^>]*>/i) || [])[0] || "";
+    const imgTag = (inner.match(/<(?:img|source)\b[^>]*>/i) || [])[0] || "";
     const imgAlt = attr(imgTag, "alt") || attr(imgTag, "title");
+    const cardImage = imageFromTag(imgTag, baseUrl);
     const titleAttr = attr(tag, "title") || attr(tag, "aria-label");
     const text = clean(inner.replace(/<img\b[^>]*>/gi, " "));
     const name = (text.match(/.{2,180}/) || [])[0] || imgAlt || titleAttr || "";
     const priceMatch = (inner + " " + (m[0].match(/.{0,80}₹\s*[\d,]+(?:\.\d{1,2})?.{0,40}/) || [""])[0]).match(/(?:₹|Rs\.?\s*)\s*([\d,]+(?:\.\d{1,2})?)/i);
     let price = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : null;
-    const imageSrc = attr(imgTag, "src") || attr(imgTag, "data-src") || attr(imgTag, "data-lazy-src") || attr(imgTag, "data-original");
-    let image = ""; try { if (imageSrc) image = new URL(imageSrc, baseUrl).href; } catch {}
+    let image = cardImage;
+    if (!image) {
+      const meta = html.match(/<meta\b[^>]*(?:property|name)\s*=\s*["'](?:og:image|twitter:image)["'][^>]*>/i);
+      if (meta) image = resolveImage(attr(meta[0], "content"), baseUrl);
+    }
     if (name.length < 3 || (!image && price === null)) continue;
     found.push({ name: name.slice(0,180), image, price, oldPrice:null, category:inferCategory(name,u.href), url:u.href });
   }

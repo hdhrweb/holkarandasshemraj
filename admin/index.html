@@ -167,7 +167,31 @@ document.getElementById('scanSiteBtn').addEventListener('click',async()=>{
   siteCandidates=(data.products||[]).map((p,i)=>({...p,_key:i,_decision:'pending'}));
   document.getElementById('addAllSiteBtn').disabled=!siteCandidates.length;
   renderSiteCandidates();
-  status.textContent=siteCandidates.length?'Found '+siteCandidates.length+' product candidate(s). Review each one; nothing is added until you click Add.':(data.note||'No product links found on that page. Try a category/shop page.');
+  // For missing scan photos, call the same endpoint used by the working single-product importer.
+  const missingImages=siteCandidates.filter(p=>!p.image&&p.url);
+  if(missingImages.length){
+   status.textContent='Found '+siteCandidates.length+' products. Recovering photos with the single-product importer…';
+   let next=0,recovered=0;
+   const worker=async()=>{
+    while(next<missingImages.length){
+     const p=missingImages[next++];
+     try{
+      const response=await fetch('/api/import-product',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:p.url})});
+      if(!response.ok)continue;
+      const details=await response.json();
+      if(details.image){p.image=details.image;recovered++}
+      if((!p.name||p.name==='Product page')&&details.name)p.name=details.name;
+      if((p.price===null||p.price===undefined||p.price==='')&&details.price!==null&&details.price!==undefined)p.price=details.price;
+      if(!p.category&&details.category)p.category=details.category;
+     }catch{}
+    }
+   };
+   await Promise.all(Array.from({length:Math.min(5,missingImages.length)},()=>worker()));
+   renderSiteCandidates();
+   status.textContent='Found '+siteCandidates.length+' products. Recovered '+recovered+' photo(s) using the single-product importer. Review photos, then Add.';
+  }else{
+   status.textContent=siteCandidates.length?'Found '+siteCandidates.length+' product candidate(s). Photos were detected where available. Review each one; nothing is added until you click Add.':(data.note||'No product links found on that page. Try a category/shop page.');
+  }
  }catch(e){status.textContent=(e.message||'Scan failed.')+' Some shops block automated scanning; try a category page.'}
  finally{btn.disabled=false;btn.textContent='Scan website'}
 });

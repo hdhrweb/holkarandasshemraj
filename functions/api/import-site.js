@@ -242,23 +242,32 @@ export async function onRequestPost({ request }) {
         }
       } catch {}
     }
-    const ordered = [...candidates.entries()].sort((a,b)=>a[1].priority-b[1].priority).slice(0,140);
-    const results = await Promise.all(ordered.map(async ([url, info]) => {
-      try {
-        const page = await fetchPage(url);
-        const item = extract(page.html, page.url, info.text);
-        const hasStructuredProduct = /"@type"\s*:\s*"Product"/i.test(page.html) ||
-          /"@type"\s*:\s*\[[^\]]*"Product"/i.test(page.html) ||
-          /product:price:amount|product:category|og:price:amount/i.test(page.html);
-        const pathLooksProduct = /product|item|sku|notebook|marker|pencil|pen|geometry|adhesive|crayon|paint|colour|color|brush|clay|glue|sharpener|eraser|ink/i.test(new URL(page.url).pathname);
-        const title = (item.name || "").trim();
-        const hasUsefulDetails = !!item.image || item.price !== null;
-        if (title.length < 2 || /^(home|about us|contact us|privacy policy|terms and conditions|login|sign in|cart|checkout|shop|products|collections|catalog|search results)$/i.test(title)) return null;
-        if (!hasStructuredProduct && !pathLooksProduct && !hasUsefulDetails) return null;
-        item.category = inferCategory(item.name, item.url, item.category);
-        return item;
-      } catch { return null; }
-    }));
+    const ordered = [...candidates.entries()].sort((a,b)=>a[1].priority-b[1].priority).slice(0,80);
+    // Keep supplier requests bounded; large parallel bursts often trigger bot protection.
+    const results = new Array(ordered.length);
+    let nextIndex = 0;
+    const worker = async () => {
+      while (true) {
+        const index = nextIndex++;
+        if (index >= ordered.length) return;
+        const [url, info] = ordered[index];
+        try {
+          const page = await fetchPage(url);
+          const item = extract(page.html, page.url, info.text);
+          const hasStructuredProduct = /"@type"\s*:\s*"Product"/i.test(page.html) ||
+            /"@type"\s*:\s*\[[^\]]*"Product"/i.test(page.html) ||
+            /product:price:amount|product:category|og:price:amount/i.test(page.html);
+          const pathLooksProduct = /product|item|sku|notebook|marker|pencil|pen|geometry|adhesive|crayon|paint|colour|color|brush|clay|glue|sharpener|eraser|ink/i.test(new URL(page.url).pathname);
+          const title = (item.name || "").trim();
+          const hasUsefulDetails = !!item.image || item.price !== null;
+          if (title.length < 2 || /^(home|about us|contact us|privacy policy|terms and conditions|login|sign in|cart|checkout|shop|products|collections|catalog|search results)$/i.test(title)) { results[index] = null; continue; }
+          if (!hasStructuredProduct && !pathLooksProduct && !hasUsefulDetails) { results[index] = null; continue; }
+          item.category = inferCategory(item.name, item.url, item.category);
+          results[index] = item;
+        } catch { results[index] = null; }
+      }
+    };
+    await Promise.all(Array.from({length: Math.min(6, ordered.length)}, () => worker()));
     const seen = new Set(), products = [];
     for (const p of [...listingProducts, ...results.filter(Boolean)]) {
       const key = (p.url || "").split("?")[0].replace(/\/$/, "").toLowerCase();

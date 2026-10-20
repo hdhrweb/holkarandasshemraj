@@ -8,7 +8,7 @@
 <section id="products" class="layout">
 <div class="panel"><h2 id="formTitle">Add a product</h2><p class="sub">Every product photo, name, price and category can be changed here. Use a photo URL or upload an image.</p>
 <div class="notice" style="margin:0 0 16px;background:#f5f0fb"><h3 style="margin:0 0 6px;font-size:16px">Import from product link ✨</h3><p class="sub" style="margin:0 0 12px">Paste a supplier or product page URL. We’ll try to read the name, photo and price so you can review them before adding.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="importProductUrl" type="url" placeholder="https://supplier.com/product-page" style="flex:1;min-width:220px;background:white;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit"><button class="btn" type="button" id="fetchProductUrl">Fetch details</button></div><div id="urlImportStatus" class="sub" aria-live="polite" style="margin-top:10px"></div><div id="urlImportPreview" class="hidden" style="margin-top:12px;padding:12px;background:white;border:1px solid var(--line);border-radius:14px"><div style="display:flex;gap:12px;align-items:flex-start"><img id="urlImportImage" alt="Imported product preview" style="width:100px;height:100px;object-fit:contain;border-radius:10px;background:#f8f5f0"><div style="flex:1;min-width:0"><b id="urlImportName">Product name</b><p id="urlImportPrice" style="margin:6px 0;font-weight:800"></p><p id="urlImportSource" class="sub" style="margin:0;overflow-wrap:anywhere"></p></div></div><p class="sub" id="urlImportNote" style="margin:10px 0"></p><button class="btn" type="button" id="useImportedProduct">Use these details in product form</button></div></div>
-<div class="notice" style="margin:0 0 16px;background:#edf5ed"><h3 style="margin:0 0 6px;font-size:16px">Import products from a whole website ✨</h3><p class="sub" style="margin:0 0 12px">Paste a shop/category/homepage link. We’ll scan product links and show a review list. Add only the products you want; reject the rest.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="importSiteUrl" type="url" placeholder="https://supplier.com/shop" style="flex:1;min-width:220px;background:white;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit"><button class="btn" type="button" id="scanSiteBtn">Scan website</button></div><div id="siteScanStatus" class="sub" aria-live="polite" style="margin-top:10px"></div><div id="siteScanResults" class="product-list" style="margin-top:12px"></div></div><form id="productForm"><input id="pid" type="hidden"><div class="field"><label>PRODUCT NAME *</label><input id="pname" required placeholder="e.g. Pastel Notebook Set"></div>
+<div class="notice" style="margin:0 0 16px;background:#edf5ed"><h3 style="margin:0 0 6px;font-size:16px">Import products from a whole website ✨</h3><p class="sub" style="margin:0 0 12px">Paste a shop/category/homepage link. We’ll scan product links and show a review list. Add only the products you want; reject the rest.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="importSiteUrl" type="url" placeholder="https://supplier.com/shop" style="flex:1;min-width:220px;background:white;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit"><button class="btn" type="button" id="scanSiteBtn">Scan website</button><button class="btn" type="button" id="addAllSiteBtn" disabled>Add all detected</button></div><div id="siteScanStatus" class="sub" aria-live="polite" style="margin-top:10px"></div><div id="siteScanResults" class="product-list" style="margin-top:12px"></div></div><form id="productForm"><input id="pid" type="hidden"><div class="field"><label>PRODUCT NAME *</label><input id="pname" required placeholder="e.g. Pastel Notebook Set"></div>
 <div class="two"><div class="field"><label>PRICE (₹) *</label><input id="pprice" required type="number" min="0" step="1" placeholder="149"></div><div class="field"><label>OLD PRICE (₹)</label><input id="pold" type="number" min="0" step="1" placeholder="199"></div></div>
 <div class="two"><div class="field"><label>CATEGORY / SEARCH WORDS</label><input id="pcat" placeholder="Notebook, School, Art"></div><div class="field"><label>BADGE</label><input id="ptag" placeholder="NEW ARRIVAL"></div></div><div class="field"><label>STOCK STATUS</label><select id="pstock" style="width:100%;background:white;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit"><option value="in">In stock</option><option value="out">Out of stock</option></select></div>
 <div class="field"><label>PRODUCT PHOTO URL</label><input id="purl" type="url" placeholder="https://… (optional if uploading)"></div>
@@ -164,10 +164,25 @@ document.getElementById('scanSiteBtn').addEventListener('click',async()=>{
   const res=await fetch('/api/import-site',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:input.value.trim()})});
   const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not scan this site.');
   siteCandidates=(data.products||[]).map((p,i)=>({...p,_key:i,_decision:'pending'}));
+  document.getElementById('addAllSiteBtn').disabled=!siteCandidates.length;
   renderSiteCandidates();
   status.textContent=siteCandidates.length?'Found '+siteCandidates.length+' product candidate(s). Review each one; nothing is added until you click Add.':(data.note||'No product links found on that page. Try a category/shop page.');
  }catch(e){status.textContent=(e.message||'Scan failed.')+' Some shops block automated scanning; try a category page.'}
  finally{btn.disabled=false;btn.textContent='Scan website'}
+});
+document.getElementById('addAllSiteBtn').addEventListener('click',()=>{
+ const status=document.getElementById('siteScanStatus');
+ const pending=siteCandidates.filter(p=>p._decision==='pending');
+ let added=0, skipped=0;
+ for(const p of pending){
+  const price=Number(p.price);
+  if(!(p.name||'').trim()||p.price===null||p.price===undefined||p.price===''||!Number.isFinite(price)||price<0){skipped++;continue}
+  window.decideSiteProduct(p._key,true);
+  if(p._decision==='added')added++;
+  else skipped++;
+ }
+ renderSiteCandidates();
+ status.textContent='Bulk add finished: '+added+' product(s) added; '+skipped+' skipped (missing name/price or duplicate). Products without a detected price stay pending so you can add them manually.';
 });
 function renderSiteCandidates(){
  const results=document.getElementById('siteScanResults');

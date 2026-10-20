@@ -167,28 +167,30 @@ document.getElementById('scanSiteBtn').addEventListener('click',async()=>{
   siteCandidates=(data.products||[]).map((p,i)=>({...p,_key:i,_decision:'pending'}));
   document.getElementById('addAllSiteBtn').disabled=!siteCandidates.length;
   renderSiteCandidates();
-  // For missing scan photos, call the same endpoint used by the working single-product importer.
-  const missingImages=siteCandidates.filter(p=>p.url);
-  if(missingImages.length){
-   status.textContent='Found '+siteCandidates.length+' products. Recovering photos with the single-product importer…';
-   let next=0,recovered=0;
+  // Re-check every product page and keep clear diagnostics instead of hiding failures.
+  const photoChecks=siteCandidates.filter(p=>p.url);
+  if(photoChecks.length){
+   status.textContent='Found '+siteCandidates.length+' products. Checking each product photo…';
+   let next=0,recovered=0,failed=0,noPhoto=0;
    const worker=async()=>{
-    while(next<missingImages.length){
-     const p=missingImages[next++];
+    while(next<photoChecks.length){
+     const p=photoChecks[next++];
+     p._photoStatus='Checking photo…';
      try{
       const response=await fetch('/api/import-product',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:p.url})});
-      if(!response.ok)continue;
-      const details=await response.json();
-      if(details.image){p.image=details.image;recovered++}
+      let details={};try{details=await response.json()}catch{}
+      if(!response.ok){failed++;p._photoStatus='Importer error ('+response.status+'): '+(details.error||'No details returned');continue}
+      if(details.image){p.image=details.image;recovered++;p._photoStatus='Photo found';}
+      else{noPhoto++;p._photoStatus='Page opened, but no image was detected';}
       if((!p.name||p.name==='Product page')&&details.name)p.name=details.name;
       if((p.price===null||p.price===undefined||p.price==='')&&details.price!==null&&details.price!==undefined)p.price=details.price;
       if(!p.category&&details.category)p.category=details.category;
-     }catch{}
+     }catch(e){failed++;p._photoStatus='Request failed: '+(e.message||'network error');}
     }
    };
-   await Promise.all(Array.from({length:Math.min(5,missingImages.length)},()=>worker()));
+   await Promise.all(Array.from({length:Math.min(5,photoChecks.length)},()=>worker()));
    renderSiteCandidates();
-   status.textContent='Found '+siteCandidates.length+' products. Recovered '+recovered+' photo(s) using the single-product importer. Review photos, then Add.';
+   status.textContent='Photo check complete: '+recovered+' found, '+noPhoto+' pages had no detectable photo, '+failed+' importer requests failed. Each product shows its result below.';
   }else{
    status.textContent=siteCandidates.length?'Found '+siteCandidates.length+' product candidate(s). Photos were detected where available. Review each one; nothing is added until you click Add.':(data.note||'No product links found on that page. Try a category/shop page.');
   }
@@ -211,7 +213,7 @@ document.getElementById('addAllSiteBtn').addEventListener('click',()=>{
 });
 function renderSiteCandidates(){
  const results=document.getElementById('siteScanResults');
- results.innerHTML=siteCandidates.map(p=>'<div class="item" style="align-items:flex-start"><img src="'+esc(displayImage(p.image))+'" alt="" onerror="this.style.visibility=\'hidden\'"><div class="info"><strong>'+esc(p.name||'Product page')+'</strong><small>'+(p.price!==null&&p.price!==undefined?'₹'+Number(p.price).toLocaleString('en-IN')+' · ':'Price not detected · ')+esc(p.url)+'</small><small>'+esc(p.category||'Category not detected')+'</small></div>'+(p._decision==='pending'?'<button type="button" onclick="decideSiteProduct('+p._key+',true)">Add</button><button type="button" class="del" onclick="decideSiteProduct('+p._key+',false)">Reject</button>':'<span class="pill">'+(p._decision==='added'?'ADDED':'REJECTED')+'</span>')+'</div>').join('');
+ results.innerHTML=siteCandidates.map(p=>'<div class="item" style="align-items:flex-start"><img src="'+esc(displayImage(p.image))+'" alt="" onerror="this.style.visibility=\'hidden\'"><div class="info"><strong>'+esc(p.name||'Product page')+'</strong><small>'+(p.price!==null&&p.price!==undefined?'₹'+Number(p.price).toLocaleString('en-IN')+' · ':'Price not detected · ')+esc(p.url)+'</small><small>'+esc(p.category||'Category not detected')+'</small>'+(p._photoStatus?'<small style="color:'+(p._photoStatus==='Photo found'?'#27764b':'#a04444')+'">'+esc(p._photoStatus)+'</small>':'')+'</div>'+(p._decision==='pending'?'<button type="button" onclick="decideSiteProduct('+p._key+',true)">Add</button><button type="button" class="del" onclick="decideSiteProduct('+p._key+',false)">Reject</button>':'<span class="pill">'+(p._decision==='added'?'ADDED':'REJECTED')+'</span>')+'</div>').join('');
 }
 window.decideSiteProduct=function(index,add){
  const p=siteCandidates.find(x=>x._key===index);if(!p||p._decision!=='pending')return;

@@ -48,6 +48,26 @@ function parsePage(html,url){
  if(typeof price==="number"&&!Number.isFinite(price))price=null;
  let image=clean(p.image)||clean(metas["og:image"])||clean(metas["og:image:url"])||clean(metas["twitter:image"])||clean(metas["twitter:image:src"]);
  if(image){try{image=new URL(image,url).href}catch{image=""}}
+ // Supplier pages often omit social/JSON-LD image metadata and lazy-load the real photo.
+ if(!image){
+  const tags=[...html.matchAll(/<(?:img|source)\b[^>]*>/gi)].map(m=>m[0]);
+  const keys=["data-src","data-lazy-src","data-original","data-original-src","data-zoom-image","data-srcset","srcset","src"];
+  for(const tag of tags){
+   for(const key of keys){
+    const match=tag.match(new RegExp("\\\\b"+key+"\\\\s*=\\\\s*[\"']([^\"']*)[\"']","i"));
+    if(!match||!match[1])continue;
+    let candidate=match[1].trim();
+    if(key.includes("srcset"))candidate=candidate.split(",").map(x=>x.trim().split(/\\s+/)[0]).filter(Boolean).pop()||"";
+    if(!candidate||/^(data:|#|javascript:)/i.test(candidate)||/transparent|placeholder|spacer/i.test(candidate))continue;
+    try{const resolved=new URL(candidate,url);if(["http:","https:"].includes(resolved.protocol)){image=resolved.href;break}}catch{}
+   }
+   if(image)break;
+  }
+ }
+ if(!image){
+  const styles=[...html.matchAll(/\\bstyle\\s*=\\s*[\"']([^\"']*background(?:-image)?\\s*:[^\"']*)[\"']/gi)];
+  for(const m of styles){const bg=m[1].match(/background(?:-image)?\\s*:[^;]*url\\((?:['\"])?([^)'\"\\s]+)(?:['\"])?\\)/i);if(bg){try{image=new URL(bg[1],url).href;break}catch{}}}
+ }
   const titleStart=html.toLowerCase().indexOf("<title");
   const titleOpen=titleStart>=0?html.indexOf(">",titleStart):-1;
   const titleClose=titleOpen>=0?html.toLowerCase().indexOf("</title>",titleOpen):-1;

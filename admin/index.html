@@ -168,7 +168,7 @@ document.getElementById('scanSiteBtn').addEventListener('click',async()=>{
   document.getElementById('addAllSiteBtn').disabled=!siteCandidates.length;
   renderSiteCandidates();
   // For missing scan photos, call the same endpoint used by the working single-product importer.
-  const missingImages=siteCandidates.filter(p=>!p.image&&p.url);
+  const missingImages=siteCandidates.filter(p=>p.url);
   if(missingImages.length){
    status.textContent='Found '+siteCandidates.length+' products. Recovering photos with the single-product importer…';
    let next=0,recovered=0;

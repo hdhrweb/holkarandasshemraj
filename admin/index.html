@@ -59,6 +59,17 @@
 <div class="foot">Store Studio · Keep product photos accurate and use images you have permission to use. This panel currently stores edits in this browser; it is not a protected multi-user admin or cloud database yet.</div>
 </div>
 <script>
+window.activateAdminTab = function(tab) {
+  const allowed = ['products', 'bulk', 'branding', 'design'];
+  if (!allowed.includes(tab)) return;
+  allowed.forEach(id => {
+    const section = document.getElementById(id);
+    if (section) section.classList.toggle('hidden', id !== tab);
+  });
+  document.querySelectorAll('.tab[data-tab]').forEach(button => {
+    button.classList.toggle('active', button.dataset.tab === tab);
+  });
+};
 const KEY='hdhr_public_products', BRAND='hdhr_store_brand';
 const starter=[
 {id:1,name:'Classic Ruled Notebook',category:'Notebook Paper',price:89,old:120,tag:'BESTSELLER',image:'https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=700&q=90'},

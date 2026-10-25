@@ -271,16 +271,32 @@ export async function onRequestPost({ request }) {
         } catch { candidates.delete(url); }
       }
     }
-    // Follow category/collection links and collect product links from those pages too.
-    const categoryLinks = [...candidates.entries()].filter(([u, v]) => /category|collection|catalog|shop|store|stationery|art|book|product|notebook|marker|pen|pencil|adhesive|geometry|early-learning|office-supplies/i.test(u + " " + v.text)).slice(0, 20);
-    for (const [u] of categoryLinks) {
+    // Always scan category pages directly: homepages often expose only promotional links.
+    const categoryUrls = new Set(
+      [...candidates.entries()]
+        .filter(([u, v]) => /category|collection|catalog|shop|store|stationery|art|book|product|notebook|marker|pen|pencil|adhesive|geometry|early-learning|office-supplies/i.test(u + " " + v.text))
+        .map(([u]) => u)
+        .slice(0, 20)
+    );
+    if (camlinCatalogue) {
+      for (const path of [
+        "/camlin/notebooks/",
+        "/camlin/markers-and-pens/",
+        "/camlin/pencils-and-accessories/",
+        "/camlin/geometry-box/",
+        "/camlin/adhesives/",
+        "/camlin/early-learning/",
+        "/camlin/office-supplies/"
+      ]) categoryUrls.add(new URL(path, target.origin).href);
+    }
+    for (const u of categoryUrls) {
       try {
-        const page = await fetchPage(u);
+        const page = await fetchPage(new URL(u));
         discoverJsonLd(page.html, candidates, page.url);
         listingProducts.push(...extractListingProducts(page.html, page.url));
-        for (const m of page.html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/gi)) {
+        for (const m of page.html.matchAll(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)) {
           const tag = m[0], href = attr(tag, "href");
-          const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ")).trim().slice(0, 180);
+          const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ")).trim().slice(0, 180);
           if (href) addCandidate(candidates, href, text, page.url);
         }
       } catch {}

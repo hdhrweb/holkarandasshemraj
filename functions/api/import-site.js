@@ -294,7 +294,7 @@ export async function onRequestPost({ request }) {
         const page = await fetchPage(new URL(u));
         discoverJsonLd(page.html, candidates, page.url);
         listingProducts.push(...extractListingProducts(page.html, page.url));
-        for (const m of page.html.matchAll(/<a\\b[^>]*>[\\s\\S]*?<\\/a>/gi)) {
+        for (const m of page.html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/gi)) {
           const tag = m[0], href = attr(tag, "href");
           const text = decode(tag.replace(/<[^>]*>/g, " ").replace(/\\s+/g, " ")).trim().slice(0, 180);
           if (href) addCandidate(candidates, href, text, page.url);

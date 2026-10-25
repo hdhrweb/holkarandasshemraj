@@ -73,7 +73,7 @@ function resolveImage(raw, baseUrl) {
   } catch { return ""; }
 }
 function imageFromTag(tag, baseUrl) {
-  const attrs = ["data-src", "data-lazy-src", "data-original", "data-original-src", "data-zoom-image", "data-srcset", "srcset", "src"];
+  const attrs = ["data-src", "data-lazy-src", "data-original", "data-original-src", "data-zoom-image", "data-image", "data-large_image", "data-lazy", "data-srcset", "srcset", "src"];
   for (const key of attrs) {
     const raw = attr(tag, key);
     if (!raw) continue;

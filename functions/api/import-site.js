@@ -21,7 +21,7 @@ function attr(tag, key) {
 function likelyProduct(url, text) {
   const path = url.toLowerCase();
   const s = (path + " " + text).toLowerCase();
-  if (["/cart","/account","/login","/logout","/search","/blog","/about","/contact","/policy","/privacy","/terms","/checkout","/wishlist","/register","/pages","/collections"].some(x=>path.includes(x))) return false;
+  if (["/cart","/account","/login","/logout","/search","/blog","/about","/contact","/policy","/privacy","/terms","/checkout","/wishlist","/register","/pages"].some(x=>path.includes(x))) return false;
   if (/^(home|about|contact|login|sign in|register|cart|checkout|blog|faq|privacy policy|terms)$/i.test((text || "").trim())) return false;
   return ["product","products","item","shop","catalog","/p/","/dp/","/itm/"].some(x=>s.includes(x));
 }
@@ -77,7 +77,7 @@ function imageFromTag(tag, baseUrl) {
   for (const key of attrs) {
     const raw = attr(tag, key);
     if (!raw) continue;
-    const candidate = key.includes("srcset") ? raw.split(",").map(x => x.trim().split(/\s+/)[0]).filter(Boolean).pop() : raw;
+    const candidate = key.includes("srcset") ? raw.split(",").map(x => { const parts=x.trim().split(/\s+/); return {url:parts[0], size:parseFloat(parts[1])||0}; }).filter(x=>x.url).sort((a,b)=>b.size-a.size)[0]?.url : raw;
     const resolved = resolveImage(candidate, baseUrl);
     if (resolved && !/transparent|placeholder|spacer/i.test(resolved)) return resolved;
   }
@@ -171,10 +171,6 @@ function extractListingProducts(html, baseUrl) {
     const priceMatch = (inner + " " + (m[0].match(/.{0,80}₹\s*[\d,]+(?:\.\d{1,2})?.{0,40}/) || [""])[0]).match(/(?:₹|Rs\.?\s*)\s*([\d,]+(?:\.\d{1,2})?)/i);
     let price = priceMatch ? Number(priceMatch[1].replace(/,/g, "")) : null;
     let image = cardImage;
-    if (!image) {
-      const meta = html.match(/<meta\b[^>]*(?:property|name)\s*=\s*["'](?:og:image|twitter:image)["'][^>]*>/i);
-      if (meta) image = resolveImage(attr(meta[0], "content"), baseUrl);
-    }
     const productPath = /product|item|sku|notebook|marker|pencil|pen|geometry|adhesive|crayon|paint|colour|color|brush|clay|glue|sharpener|eraser|ink|toy|book|stationery/i.test(u.pathname + " " + name);
     if (name.length < 3 || (!image && price === null && !productPath)) continue;
     found.push({ name: name.slice(0,180), image, price, oldPrice:null, category:inferCategory(name,u.href), url:u.href });

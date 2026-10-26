@@ -115,13 +115,13 @@ function extract(html,url,linkText){
  if(typeof raw!=="number"||!Number.isFinite(raw))raw=null;
  let category=tidy(p.category)||metas["product:category"]||"";
  {
-  const imgs=[...html.matchAll(/<(?:img|source)\\b[^>]*>/gi)].map(m=>m[0]);
+  const imgs=[...html.matchAll(/<(?:img|source)\b[^>]*>/gi)].map(m=>m[0]);
   const ranked=[];
   for(const tag of imgs){
    const candidate=imageFromTag(tag,url);
    if(!candidate || /logo|banner|placeholder|sprite|favicon|payment|social|avatar|tracking|pixel|loader/i.test(candidate+" "+attr(tag,"alt")+" "+attr(tag,"title"))) continue;
    let score=0;
-   if(/product|gallery|catalog|catalogue|uploads|media|products?\\//i.test(candidate)) score+=4;
+   if(/product|gallery|catalog|catalogue|uploads|media|products?\//i.test(candidate)) score+=4;
    if(/\\.(jpe?g|png|webp)(?:$|[?&])/i.test(candidate)) score+=2;
    if(/product|pack|shade|marker|pencil|notebook|camlin|camel/i.test(candidate+" "+attr(tag,"alt"))) score+=3;
    ranked.push({url:candidate,score});

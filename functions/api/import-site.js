@@ -146,7 +146,9 @@ function extractListingProducts(html, baseUrl) {
     const tag = m[0], href = attr(tag, "href");
     if (!href) continue;
     let u; try { u = new URL(href, baseUrl); } catch { continue; }
-    if (u.hostname !== new URL(baseUrl).hostname || !u.pathname.toLowerCase().startsWith("/camlin/")) continue;
+    const base = new URL(baseUrl);
+    if (u.hostname !== base.hostname || u.href === base.href) continue;
+    if (base.pathname.toLowerCase().startsWith("/camlin") && !u.pathname.toLowerCase().startsWith("/camlin/")) continue;
     if (/\.(jpg|jpeg|png|gif|webp|svg|pdf|css|js|xml|json)$/i.test(u.pathname)) continue;
     const inner = tag.replace(/^<a\b[^>]*>/i, "").replace(/<\/a>$/i, "");
     const imageTags = [...inner.matchAll(/<(?:img|source)\b[^>]*>/gi)].map(x => x[0]);
@@ -173,7 +175,8 @@ function extractListingProducts(html, baseUrl) {
       const meta = html.match(/<meta\b[^>]*(?:property|name)\s*=\s*["'](?:og:image|twitter:image)["'][^>]*>/i);
       if (meta) image = resolveImage(attr(meta[0], "content"), baseUrl);
     }
-    if (name.length < 3 || (!image && price === null)) continue;
+    const productPath = /product|item|sku|notebook|marker|pencil|pen|geometry|adhesive|crayon|paint|colour|color|brush|clay|glue|sharpener|eraser|ink|toy|book|stationery/i.test(u.pathname + " " + name);
+    if (name.length < 3 || (!image && price === null && !productPath)) continue;
     found.push({ name: name.slice(0,180), image, price, oldPrice:null, category:inferCategory(name,u.href), url:u.href });
   }
   return found;

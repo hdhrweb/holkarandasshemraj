@@ -103,7 +103,10 @@ function extract(html,url,linkText){
  const tidy=v=>Array.isArray(v)?tidy(v[0]):v&&typeof v==="object"?(v.url||v["@id"]||v.contentUrl||""):typeof v==="string"?decode(v.trim()):"";
  const titleMatch=html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i),h1Match=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
  const name=tidy(p.name)||metas["og:title"]||metas["twitter:title"]||clean(h1Match?.[1])||clean(titleMatch?.[1])||linkText||"";
- let image=resolveImage(tidy(p.image)||metas["og:image"]||metas["og:image:url"]||metas["twitter:image"]||"",url);
+ let image="";
+ const jsonImage=resolveImage(tidy(p.image),url);
+ const metadataImage=resolveImage(metas["og:image"]||metas["og:image:url"]||metas["twitter:image"]||"",url);
+ if(jsonImage && !/logo|banner|placeholder|sprite|favicon/i.test(jsonImage)) image=jsonImage;
  let raw=offers.price??offers.lowPrice??p.price??metas["product:price:amount"]??metas["og:price:amount"]??null;
  // Camlin product pages sometimes expose the visible MRP without Product JSON-LD price metadata.
  if(raw==null){const visiblePrice=html.match(/₹\s*([\d,]+(?:\.\d{1,2})?)/);if(visiblePrice)raw=visiblePrice[1];}
@@ -111,9 +114,20 @@ function extract(html,url,linkText){
  if(typeof raw==="string"){raw=raw.replace(/[^\d.,]/g,"").replace(/,(?=\d{3}(?:\D|$))/g,"").replace(",",".");raw=raw?Number(raw):null}
  if(typeof raw!=="number"||!Number.isFinite(raw))raw=null;
  let category=tidy(p.category)||metas["product:category"]||"";
- if(!image){
-  const imgs=[...html.matchAll(/<(?:img|source)\b[^>]*>/gi)].map(m=>m[0]);
-  for(const tag of imgs){image=imageFromTag(tag,url);if(image)break}
+ {
+  const imgs=[...html.matchAll(/<(?:img|source)\\b[^>]*>/gi)].map(m=>m[0]);
+  const ranked=[];
+  for(const tag of imgs){
+   const candidate=imageFromTag(tag,url);
+   if(!candidate || /logo|banner|placeholder|sprite|favicon|payment|social|avatar|tracking|pixel|loader/i.test(candidate+" "+attr(tag,"alt")+" "+attr(tag,"title"))) continue;
+   let score=0;
+   if(/product|gallery|catalog|catalogue|uploads|media|products?\\//i.test(candidate)) score+=4;
+   if(/\\.(jpe?g|png|webp)(?:$|[?&])/i.test(candidate)) score+=2;
+   if(/product|pack|shade|marker|pencil|notebook|camlin|camel/i.test(candidate+" "+attr(tag,"alt"))) score+=3;
+   ranked.push({url:candidate,score});
+  }
+  ranked.sort((a,b)=>b.score-a.score);
+  image=ranked[0]?.url || image || metadataImage;
  }
  if(!image){
   const styles=[...html.matchAll(/\bstyle\s*=\s*["']([^"']*background(?:-image)?\s*:[^"']*)["']/gi)].map(m=>m[1]);

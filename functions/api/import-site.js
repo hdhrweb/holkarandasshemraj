@@ -227,6 +227,41 @@ export async function onRequestPost({ request }) {
   const target = publicUrl(body?.url);
   if (!target) return reply({ error: "Please enter a public http or https website URL." }, 400);
   try {
+    // Shopify collection pages expose a structured storefront JSON feed. Try it first
+    // so bulk import does not depend on fragile product-card HTML parsing.
+    if (/\/collections\/[^/]+\/?$/i.test(target.pathname)) {
+      const collectionHandle = target.pathname.match(/\/collections\/([^/]+)\/?$/i)?.[1];
+      if (collectionHandle) {
+        try {
+          const feedUrl = new URL(`/collections/${encodeURIComponent(collectionHandle)}/products.json?limit=250&page=1`, target.origin);
+          const feedResponse = await fetch(feedUrl.href, {
+            headers: { "user-agent": "Mozilla/5.0 (compatible; HDHRSiteImporter/1.0)", "accept": "application/json,text/plain,*/*" },
+            signal: AbortSignal.timeout(7000)
+          });
+          const feedType = feedResponse.headers.get("content-type") || "";
+          if (feedResponse.ok && /json/i.test(feedType)) {
+            const feed = await feedResponse.json();
+            if (Array.isArray(feed.products)) {
+              const products = feed.products.map(p => {
+                const variant = (p.variants || []).find(v => Number(v.price) > 0) || (p.variants || [])[0] || {};
+                const price = Number(variant.price);
+                const image = p.featured_image || p.images?.[0]?.src || p.images?.[0] || "";
+                const url = new URL(`/products/${p.handle || ""}`, target.origin).href;
+                return {
+                  name: String(p.title || "").trim().slice(0,180),
+                  image: typeof image === "string" ? image : (image?.src || ""),
+                  price: Number.isFinite(price) && price > 0 ? price : null,
+                  oldPrice: Number(variant.compare_at_price) > 0 ? Number(variant.compare_at_price) : null,
+                  category: inferCategory(p.title, url, p.product_type || ""),
+                  url
+                };
+              }).filter(p => p.name && p.price !== null);
+              if (products.length) return reply({ products, scanned: feed.products.length, note: "" });
+            }
+          }
+        } catch {}
+      }
+    }
     const home = await fetchPage(target);
     const candidates = new Map();
     const listingProducts = extractListingProducts(home.html, home.url);

@@ -365,7 +365,8 @@ export async function onRequestPost({ request }) {
         url: p.url || prior.url
       });
     }
-    const products = [...byUrl.values()];
+    // Only return products with a real, detected price. Do not make up or guess prices.
+    const products = [...byUrl.values()].filter(p => p.price !== null && p.price !== undefined && Number.isFinite(Number(p.price)) && Number(p.price) > 0);
     return reply({ products, scanned: ordered.length, note: products.length ? "" : (ordered.length ? "This supplier is hiding product data from automated requests. Try its category page or paste a sitemap URL." : "No product links found. Paste a category/search-results page or the supplier sitemap URL.") });
   } catch (e) {
     return reply({ error: e?.name === "TimeoutError" ? "The site took too long to respond." : (e?.message || "Could not scan this site.") }, 502);

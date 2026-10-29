@@ -173,8 +173,13 @@ document.getElementById('scanSiteBtn').addEventListener('click',async()=>{
  if(!input.value.trim()){status.textContent='Paste a website or shop page URL first.';return}
  btn.disabled=true;btn.textContent='Scanning…';status.textContent='Finding product pages (up to 20 at a time)…';results.innerHTML='';siteCandidates=[];
  try{
-  const res=await fetch('/api/import-site',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:input.value.trim()})});
-  const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not scan this site.');
+  const res=await fetch('/api/import-site',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({url:input.value.trim()})});
+  const raw=await res.text();let data={};
+  try{data=JSON.parse(raw)}catch{
+   const preview=raw.replace(/<[^>]*>/g,' ').replace(/\\s+/g,' ').trim().slice(0,140);
+   throw new Error(res.status===404?'Bulk scan API route returned 404. Check the deployed Pages Functions route.':'Bulk scan API returned HTML instead of JSON ('+res.status+'). '+(preview||'No response details.'));
+  }
+  if(!res.ok)throw new Error(data.error||'Could not scan this site.');
   siteCandidates=(data.products||[]).map((p,i)=>({...p,_key:i,_decision:'pending'}));
   document.getElementById('addAllSiteBtn').disabled=!siteCandidates.length;
   renderSiteCandidates();

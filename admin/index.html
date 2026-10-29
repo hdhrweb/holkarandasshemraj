@@ -191,7 +191,21 @@ document.getElementById('scanSiteBtn').addEventListener('click',async()=>{
       const response=await fetch('/api/import-product',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:p.url})});
       let details={};try{details=await response.json()}catch{}
       if(!response.ok){failed++;p._photoStatus='Importer error ('+response.status+'): '+(details.error||'No details returned');continue}
-      if(details.image){p.image=details.image;recovered++;p._photoStatus='Photo found';}
+      if(details.image){
+       const candidate=String(details.image).trim();
+       // Only mark a photo as found if the image endpoint can return image bytes.
+       let imageOk=false;
+       try{
+        const probe=await fetch('/api/image?url='+encodeURIComponent(candidate),{method:'GET',cache:'no-store'});
+        const type=(probe.headers.get('content-type')||'').toLowerCase();
+        imageOk=probe.ok&&type.startsWith('image/');
+       }catch{}
+       if(imageOk){p.image=candidate;recovered++;p._photoStatus='Photo URL verified';}
+       else{
+        noPhoto++;
+        p._photoStatus='Image URL found, but image could not load — upload a photo or use another image URL';
+       }
+      }
       else{noPhoto++;p._photoStatus='Page opened, but no image was detected';}
       if((!p.name||p.name==='Product page')&&details.name)p.name=details.name;
       if((p.price===null||p.price===undefined||p.price==='')&&details.price!==null&&details.price!==undefined)p.price=details.price;

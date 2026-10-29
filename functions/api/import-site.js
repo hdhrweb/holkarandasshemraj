@@ -111,7 +111,7 @@ function extract(html,url,linkText){
  // Camlin product pages sometimes expose the visible MRP without Product JSON-LD price metadata.
  if(raw==null){
   // Shopify themes commonly render the visible price as "Rs. 200.00" rather than a rupee symbol.
-  const visiblePrices=[...html.matchAll(/(?:₹|Rs\\.?|INR)\\s*([\\d,]+(?:\\.\\d{1,2})?)/gi)]
+  const visiblePrices=[...html.matchAll(/(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d{1,2})?)/gi)]
     .map(m=>Number(m[1].replace(/,/g,"")))
     .filter(n=>Number.isFinite(n)&&n>=0);
   if(visiblePrices.length)raw=visiblePrices[0];

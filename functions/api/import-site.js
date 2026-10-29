@@ -27,7 +27,7 @@ function likelyProduct(url, text) {
 }
 
 function inferCategory(name, url, category="") {
-  if (category && category.trim()) return category.trim().slice(0,80);
+  if (category && category.trim()) return category.trim().slice(0,160);
   const s=(String(name||"")+" "+String(url||"")).toLowerCase().replace(/[-_/]+/g," ");
   const rules=[
     [/notebook|notepad|paper|register|diary|journal|writing pad/,"Notebooks & Paper"],
@@ -109,7 +109,13 @@ function extract(html,url,linkText){
  if(jsonImage && !/logo|banner|placeholder|sprite|favicon/i.test(jsonImage)) image=jsonImage;
  let raw=offers.price??offers.lowPrice??p.price??metas["product:price:amount"]??metas["og:price:amount"]??null;
  // Camlin product pages sometimes expose the visible MRP without Product JSON-LD price metadata.
- if(raw==null){const visiblePrice=html.match(/₹\s*([\d,]+(?:\.\d{1,2})?)/);if(visiblePrice)raw=visiblePrice[1];}
+ if(raw==null){
+  // Shopify themes commonly render the visible price as "Rs. 200.00" rather than a rupee symbol.
+  const visiblePrices=[...html.matchAll(/(?:₹|Rs\\.?|INR)\\s*([\\d,]+(?:\\.\\d{1,2})?)/gi)]
+    .map(m=>Number(m[1].replace(/,/g,"")))
+    .filter(n=>Number.isFinite(n)&&n>=0);
+  if(visiblePrices.length)raw=visiblePrices[0];
+ }
  if(raw&&typeof raw==="object")raw=raw.value??null;
  if(typeof raw==="string"){raw=raw.replace(/[^\d.,]/g,"").replace(/,(?=\d{3}(?:\D|$))/g,"").replace(",",".");raw=raw?Number(raw):null}
  if(typeof raw!=="number"||!Number.isFinite(raw))raw=null;
